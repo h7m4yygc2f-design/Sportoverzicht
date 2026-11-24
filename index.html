@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f9f9f7" media="(prefers-color-scheme: light)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-512.png">
+<title>Sportoverzicht</title>
+<style>
+:root{
+  color-scheme:light;
+  --page:#f9f9f7; --surface:#fcfcfb; --card:#ffffff;
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --good:#006300; --bad:#d03b3b;
+  --h0:#e9e8e3; --h1:#b7d3f6; --h2:#6da7ec; --h3:#2a78d6; --h4:#184f95;
+  --chip:#efeee9; --accent-ink:#ffffff;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --page:#0d0d0d; --surface:#1a1a19; --card:#1a1a19;
+    --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --good:#0ca30c; --bad:#e66767;
+    --h0:#262624; --h1:#184f95; --h2:#256abf; --h3:#3987e5; --h4:#86b6ef;
+    --chip:#262624;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#0d0d0d; --surface:#1a1a19; --card:#1a1a19;
+  --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --good:#0ca30c; --bad:#e66767;
+  --h0:#262624; --h1:#184f95; --h2:#256abf; --h3:#3987e5; --h4:#86b6ef;
+  --chip:#262624;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+#app{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 90px)}
+h1{font-size:28px;margin:8px 0 4px;letter-spacing:-.02em}
+h2{font-size:17px;margin:0 0 10px}
+h3{font-size:15px;margin:14px 0 6px}
+.sub{color:var(--ink2);margin:0 0 16px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin:0 0 14px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px}
+@media (min-width:600px){.tiles{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px}
+.tile .lbl{font-size:12.5px;color:var(--ink2)}
+.tile .val{font-size:24px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.tile .delta{font-size:12.5px;color:var(--muted)}
+.hero{font-size:56px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+nav{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);display:flex;justify-content:center;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);z-index:5}
+nav button{flex:1;max-width:140px;background:none;border:0;color:var(--muted);font:inherit;font-size:11px;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+nav button span{font-size:20px;line-height:1.1}
+nav button[aria-current="page"]{color:var(--ink);font-weight:600}
+button.btn,label.btn{display:inline-flex;align-items:center;gap:6px;background:var(--s1);color:var(--accent-ink);border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;margin:4px 6px 4px 0}
+.btn.ghost{background:var(--chip);color:var(--ink)}
+.btn.danger{background:none;color:var(--bad);border:1px solid var(--border)}
+input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],input[type=search],select,textarea{width:100%;font:inherit;font-size:16px;padding:9px 11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink);margin:4px 0 10px}
+.row{display:flex;gap:10px}.row>*{flex:1;min-width:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:0 0 12px;scrollbar-width:none}
+.chip{white-space:nowrap;background:var(--chip);border:1px solid transparent;color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13.5px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--ink);font-weight:600}
+.src{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--chip);color:var(--ink2);vertical-align:1px}
+.act{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--grid)}
+.act:first-child{border-top:0}
+.act .ic{font-size:22px;width:30px;text-align:center;line-height:1.3}
+.act .main{flex:1;min-width:0}
+.act .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act .meta{font-size:13px;color:var(--ink2)}
+details.act summary{list-style:none;display:flex;gap:12px;cursor:pointer;width:100%}
+details.act summary::-webkit-details-marker{display:none}
+details.act{display:block}
+.exlist{margin:8px 0 2px 42px;font-size:13.5px;color:var(--ink2)}
+.exlist b{color:var(--ink);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 5px;border-bottom:1px solid var(--grid)}
+th{font-weight:600;color:var(--ink2);font-size:12.5px}
+td.n,th.n{text-align:right;white-space:nowrap}
+.meter{margin:8px 0}
+.meter .bar{height:8px;border-radius:4px;background:var(--h0);overflow:hidden;margin-top:4px}
+.meter .bar i{display:block;height:100%;background:var(--s1);border-radius:4px}
+.legend{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{width:11px;height:11px;border-radius:2px;display:inline-block}
+svg text{font-family:inherit}
+#tip{position:fixed;left:0;top:0;z-index:20;pointer-events:none;background:var(--ink);color:var(--page);font-size:13px;padding:7px 10px;border-radius:8px;white-space:pre-line;max-width:240px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.prog{height:6px;border-radius:3px;background:var(--h0);overflow:hidden;margin:8px 0}
+.prog i{display:block;height:100%;width:0;background:var(--s1);transition:width .2s}
+.msg{font-size:13.5px;margin:6px 0 0;color:var(--ink2);white-space:pre-line}
+.msg.err{color:var(--bad)}
+.ok{color:var(--good);font-weight:600}
+ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
+.empty{text-align:center;padding:26px 10px;color:var(--ink2)}
+.empty .big{font-size:40px}
+.scroll-x{overflow-x:auto}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<nav id="nav"></nav>
+<div id="tip" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+<script>
+"use strict";
+const VERSIE = '1.0';
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const NF0 = new Intl.NumberFormat('nl-BE', {maximumFractionDigits:0});
+const NF1 = new Intl.NumberFormat('nl-BE', {maximumFractionDigits:1});
+const n0 = v => NF0.format(v || 0), n1 = v => NF1.format(v || 0);
+const DAY = 864e5;
+function dk(ms){ const d = new Date(ms); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function dayStart(ms){ const d = new Date(ms); d.setHours(0,0,0,0); return d.getTime(); }
+function weekStart(ms){ const d = new Date(ms); d.setHours(0,0,0,0); d.setDate(d.getDate() - (d.getDay()+6)%7); return d.getTime(); }
+function keyToMs(k){ const [y,m,d] = k.split('-').map(Number); return new Date(y, m-1, d).getTime(); }
+function fmtDur(s){ s = Math.round(s||0); const h = Math.floor(s/3600), m = Math.round((s%3600)/60); return h ? h+'u '+pad(m) : m+' min'; }
+function fmtKm(m){ return m ? n1(m/1000)+' km' : ''; }
+function fmtDate(ms, o){ return new Date(ms).toLocaleDateString('nl-BE', o || {weekday:'short', day:'numeric', month:'short'}); }
+function fmtDateY(ms){ return new Date(ms).toLocaleDateString('nl-BE', {day:'numeric', month:'short', year:'numeric'}); }
+function fmtTime(ms){ return new Date(ms).toLocaleTimeString('nl-BE', {hour:'2-digit', minute:'2-digit'}); }
+function niceMax(v){ if(v <= 0) return 1; const p = 10 ** Math.floor(Math.log10(v)); for(const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if(m*p >= v) return m*p; return 10*p; }
+
+/* ---------- opslag (IndexedDB, alleen op dit toestel) ---------- */
+let dbp;
+function idb(){ return dbp ||= new Promise((res, rej) => { const r = indexedDB.open('sportoverzicht', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function dbGet(k){ try{ const db = await idb(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }catch(e){ return undefined; } }
+async function dbSet(k, v){ try{ const db = await idb(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }catch(e){ console.warn('Opslaan mislukt', e); } }
+
+const S = { strava:[], hevy:[], health:[], manual:[], daily:{}, cfg:{} };
+const KEYS = ['strava','hevy','health','manual','daily','cfg'];
+async function loadAll(){ for(const k of KEYS){ const v = await dbGet(k); if(v !== undefined) S[k] = v; } }
+async function save(...ks){ CACHE = null; for(const k of ks) await dbSet(k, S[k]); }
+
+/* ---------- sporten ---------- */
+const SPORT = {
+  kracht:['Kracht','🏋️'], lopen:['Lopen','🏃'], fietsen:['Fietsen','🚴'], wandelen:['Wandelen','🚶'],
+  hiken:['Hiken','🥾'], zwemmen:['Zwemmen','🏊'], voetbal:['Voetbal','⚽'], hiit:['HIIT','🔥'],
+  cardio:['Cardio','❤️'], roeien:['Roeien','🚣'], yoga:['Yoga & mobiliteit','🧘'], coach:['Coachsessie','📋'],
+  vechtsport:['Vechtsport','🥊'], overig:['Andere','💪']
+};
+const SRC = { strava:'Strava', hevy:'Hevy', health:'Gezondheid', manual:'Zelf' };
+function normHK(t){
+  t = (t||'').replace('HKWorkoutActivityType','');
+  if(/Strength|CoreTraining|CrossTraining/.test(t)) return 'kracht';
+  if(/^Running/.test(t)) return 'lopen';
+  if(/Cycling|HandCycling/.test(t)) return 'fietsen';
+  if(/^Walking/.test(t)) return 'wandelen';
+  if(/Hiking/.test(t)) return 'hiken';
+  if(/Swimming/.test(t)) return 'zwemmen';
+  if(/Soccer/.test(t)) return 'voetbal';
+  if(/HighIntensity/.test(t)) return 'hiit';
+  if(/Rowing/.test(t)) return 'roeien';
+  if(/Yoga|Flexibility|Pilates|Cooldown|MindAndBody/.test(t)) return 'yoga';
+  if(/Elliptical|MixedCardio|StairClimbing|Stairs|JumpRope|Cardio/.test(t)) return 'cardio';
+  if(/Boxing|Kickboxing|MartialArts/.test(t)) return 'vechtsport';
+  return 'overig';
+}
+function normStrava(t){
+  t = t || '';
+  if(/Run/.test(t)) return 'lopen';
+  if(/Ride|Velomobile|Handcycle/.test(t)) return 'fietsen';
+  if(t === 'Walk') return 'wandelen';
+  if(t === 'Hike') return 'hiken';
+  if(/WeightTraining|Crossfit/.test(t)) return 'kracht';
+  if(/Swim/.test(t)) return 'zwemmen';
+  if(/Soccer/.test(t)) return 'voetbal';
+  if(/HighIntensity/.test(t)) return 'hiit';
+  if(/Rowing/.test(t)) return 'roeien';
+  if(/Yoga|Pilates/.test(t)) return 'yoga';
+  if(/Elliptical|StairStepper/.test(t)) return 'cardio';
+  return 'overig';
+}
+
+/* ---------- alle trainingen samen (dubbels eruit) ---------- */
+let CACHE = null;
+function data(){
+  if(CACHE) return CACHE;
+  const PRI = {manual:4, hevy:3, strava:2, health:1};
+  const all = [...S.manual, ...S.hevy, ...S.strava, ...S.health].filter(a => a && a.start);
+  all.sort((a,b) => PRI[b.src]-PRI[a.src] || (b.dur||0)-(a.dur||0));
+  const buckets = new Map(), kept = [];
+  // dubbel = start binnen 10 min, of zelfde sport op dezelfde dag binnen 90 min (tijdzoneverschillen tussen apps)
+  const B = 6e5;
+  for(const a of all){
+    const k = Math.floor(a.start / B), day = dk(a.start);
+    let dup = false;
+    for(let kk = k-9; kk <= k+9 && !dup; kk++){
+      const arr = buckets.get(kk);
+      if(arr) dup = arr.some(b => Math.abs(b.start - a.start) < B || (b.type === a.type && b.day === day && Math.abs(b.start - a.start) < 9*B));
+    }
+    if(dup) continue;
+    kept.push(a);
+    if(!buckets.has(k)) buckets.set(k, []);
+    buckets.get(k).push({start:a.start, type:a.type, day});
+  }
+  kept.sort((a,b) => b.start - a.start);
+  const days = new Map();
+  for(const a of kept){
+    const k = dk(a.start);
+    const d = days.get(k) || {min:0, n:0, types:new Set(), km:0};
+    d.min += (a.dur||0)/60; d.n++; d.types.add(a.type); d.km += (a.dist||0)/1000;
+    days.set(k, d);
+  }
+  return CACHE = {acts:kept, days};
+}
+
+/* ---------- statistiek ---------- */
+function streaks(days){
+  const today = dayStart(Date.now());
+  let ds = 0, t = days.has(dk(today)) ? today : today - DAY;
+  while(days.has(dk(t))){ ds++; t = dayStart(t - DAY/2); }
+  const weeks = new Set(); for(const k of days.keys()) weeks.add(weekStart(keyToMs(k)));
+  let ws = 0, w = weekStart(Date.now());
+  if(!weeks.has(w)) w = weekStart(w - 3*DAY);
+  while(weeks.has(w)){ ws++; w = weekStart(w - 3*DAY); }
+  let best = 0, run = 0, prev = null;
+  for(const k of [...days.keys()].sort()){ const ms = keyToMs(k); run = (prev !== null && Math.round((ms - prev)/DAY) === 1) ? run+1 : 1; best = Math.max(best, run); prev = ms; }
+  return {ds, ws, best};
+}
+function periodSum(acts, from, to){
+  let n = 0, s = 0, m = 0; const dset = new Set();
+  for(const a of acts){ if(a.start >= from && a.start < to){ n++; s += a.dur||0; m += a.dist||0; dset.add(dk(a.start)); } }
+  return {n, s, m, days:dset.size};
+}
+
+/* ---------- grafieken ---------- */
+let CW = 340;
+function measure(){ CW = Math.max(260, Math.min(688, ($('#app').clientWidth || 360) - 32 - 34)); }
+function barPath(x, y, w, h, r){ r = Math.min(r, w/2, h); if(h <= 0) return ''; return `M${x},${y+h}V${y+r}Q${x},${y} ${x+r},${y}H${x+w-r}Q${x+w},${y} ${x+w},${y+r}V${y+h}Z`; }
+function yAxis(W, pl, pr, pt, ih, max, fmt){
+  let s = '';
+  for(const f of [0, .5, 1]){
+    const y = pt + ih - ih*f;
+    s += `<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="${f ? 'var(--grid)' : 'var(--axis)'}" stroke-width="1"/>`;
+    s += `<text x="${pl-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${esc(fmt(max*f))}</text>`;
+  }
+  return s;
+}
+/* data: [{v, label, tip, hi}] */
+function barChart(data, {h=170, fmt=n0, title=''}={}){
+  if(!data.length) return '';
+  const W = CW, pl = 40, pr = 16, pt = 10, pb = 22, ih = h - pt - pb;
+  const max = niceMax(Math.max(...data.map(d => d.v)));
+  const n = data.length, cw = (W - pl - pr)/n, gap = Math.max(2, Math.min(cw*0.3, 10)), bw = cw - gap;
+  let s = yAxis(W, pl, pr, pt, ih, max, fmt);
+  const every = Math.ceil(n / Math.max(3, Math.floor((W-pl)/58)));
+  data.forEach((d, i) => {
+    const x = pl + i*cw + gap/2, bh = ih * (d.v/max), y = pt + ih - bh;
+    s += `<path d="${barPath(x, y, bw, bh, 4)}" fill="var(--s1)" opacity="${d.dim ? .45 : 1}"/>`;
+    if(d.label && (n - 1 - i) % every === 0) s += `<text x="${x+bw/2}" y="${h-6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(d.label)}</text>`;
+    s += `<rect x="${pl+i*cw}" y="${pt}" width="${cw}" height="${ih+pb}" fill="transparent" data-tip="${esc(d.tip)}"/>`;
+  });
+  return `<svg width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(title)}" style="display:block;max-width:100%">${s}</svg>`;
+}
+const LINES = [];
+/* pts: [{t (ms), v, tip}] */
+function lineChart(pts, {h=170, fmt=n1, title='', pad=0.1}={}){
+  if(pts.length < 2) return '<p class="muted small">Te weinig metingen voor een grafiek.</p>';
+  const W = CW, pl = 40, pr = 8, pt = 10, pb = 22, ih = h - pt - pb, iw = W - pl - pr;
+  let lo = Math.min(...pts.map(p => p.v)), hi = Math.max(...pts.map(p => p.v));
+  const span = Math.max(hi - lo, 1); lo = Math.floor(lo - span*pad); hi = Math.ceil(hi + span*pad);
+  const t0 = pts[0].t, t1 = pts[pts.length-1].t, ts = Math.max(t1 - t0, 1);
+  const X = t => pl + iw * (t - t0)/ts, Y = v => pt + ih - ih*(v - lo)/(hi - lo);
+  let s = '';
+  for(const f of [0, .5, 1]){ const y = pt + ih - ih*f, v = lo + (hi-lo)*f;
+    s += `<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="${f ? 'var(--grid)' : 'var(--axis)'}"/><text x="${pl-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${esc(fmt(v))}</text>`; }
+  for(const f of [0, .5, 1]){ const t = t0 + ts*f; s += `<text x="${Math.min(Math.max(X(t), pl+24), W-pr-24)}" y="${h-6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(fmtDate(t, {month:'short', year:'2-digit'}))}</text>`; }
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join('');
+  s += `<path d="${d}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  const last = pts[pts.length-1];
+  s += `<circle cx="${X(last.t)}" cy="${Y(last.v)}" r="4" fill="var(--s1)" stroke="var(--card)" stroke-width="2"/>`;
+  const id = LINES.length;
+  LINES.push(pts.map(p => ({x:X(p.t), y:Y(p.v), tip:p.tip})));
+  s += `<g class="cross" style="display:none"><line y1="${pt}" y2="${pt+ih}" stroke="var(--axis)"/><circle r="4.5" fill="var(--s1)" stroke="var(--card)" stroke-width="2"/></g>`;
+  s += `<rect class="line-hit" data-line="${id}" x="${pl}" y="0" width="${iw}" height="${h}" fill="transparent"/>`;
+  return `<svg width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="${esc(title)}" style="display:block;max-width:100%;touch-action:pan-y">${s}</svg>`;
+}
+function heatmap(days, weeks = 26){
+  const gap = 3, cols = weeks, W = CW, lblW = 18;
+  const cell = Math.floor((W - lblW - gap*(cols-1)) / cols), h = 7*cell + 6*gap + 18;
+  const start = weekStart(Date.now()) - (weeks-1)*7*DAY, today = dayStart(Date.now());
+  let s = '';
+  ['ma','','wo','','vr','','zo'].forEach((l, r) => { if(l) s += `<text x="0" y="${r*(cell+gap)+cell-1}" font-size="10" fill="var(--muted)">${l}</text>`; });
+  let lastMonth = -1;
+  for(let c = 0; c < cols; c++){
+    const wk = start + c*7*DAY, mo = new Date(wk + 3*DAY).getMonth();
+    if(mo !== lastMonth && c < cols-1){ s += `<text x="${lblW + c*(cell+gap)}" y="${h-3}" font-size="10" fill="var(--muted)">${esc(new Date(wk+3*DAY).toLocaleDateString('nl-BE',{month:'short'}))}</text>`; lastMonth = mo; }
+    for(let r = 0; r < 7; r++){
+      const t = dayStart(wk + r*DAY + DAY/2); if(t > today) continue;
+      const d = days.get(dk(t)), m = d ? d.min : 0;
+      const lv = !d ? 0 : m < 30 ? 1 : m < 60 ? 2 : m < 90 ? 3 : 4;
+      const tip = fmtDate(t, {weekday:'long', day:'numeric', month:'long'}) + '\n' + (d ? `${d.n} training${d.n>1?'en':''} · ${fmtDur(m*60)}\n${[...d.types].map(x => SPORT[x][0]).join(', ')}` : 'Rustdag');
+      s += `<rect x="${lblW + c*(cell+gap)}" y="${r*(cell+gap)}" width="${cell}" height="${cell}" rx="2" fill="var(--h${lv})" data-tip="${esc(tip)}"/>`;
+    }
+  }
+  return `<svg width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="Trainingskalender laatste ${weeks} weken" style="display:block;max-width:100%">${s}</svg>
+  <div class="legend">Rust <i style="background:var(--h0)"></i> &lt;30 min <i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i> 90+ min</div>`;
+}
+
+/* tooltip */
+const tip = $('#tip');
+function showTip(text, x, y){
+  tip.textContent = text; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let tx = x + 12, ty = y - r.height - 12;
+  if(tx + r.width > innerWidth - 8) tx = x - r.width - 12;
+  if(tx < 8) tx = 8; if(ty < 8) ty = y + 18;
+  tip.style.transform = `translate(${tx}px,${ty}px)`;
+}
+function hideTip(){ tip.hidden = true; document.querySelectorAll('.cross').forEach(c => c.style.display = 'none'); }
+function onPoint(e){
+  const lh = e.target.closest && e.target.closest('.line-hit');
+  if(lh){
+    const pts = LINES[+lh.dataset.line], svg = lh.ownerSVGElement, b = svg.getBoundingClientRect();
+    const x = (e.clientX - b.left) * (svg.viewBox.baseVal.width / b.width);
+    let best = pts[0]; for(const p of pts) if(Math.abs(p.x - x) < Math.abs(best.x - x)) best = p;
+    const g = svg.querySelector('.cross'); g.style.display = '';
+    const [ln, c] = g.children; ln.setAttribute('x1', best.x); ln.setAttribute('x2', best.x); c.setAttribute('cx', best.x); c.setAttribute('cy', best.y);
+    showTip(best.tip, e.clientX, e.clientY); return;
+  }
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if(t) showTip(t.dataset.tip, e.clientX, e.clientY); else hideTip();
+}
+document.addEventListener('pointermove', onPoint);
+document.addEventListener('pointerdown', onPoint);
+document.addEventListener('scroll', hideTip, {passive:true});
+
+/* ---------- weergave ---------- */
+const TABS = [['home','🏠','Overzicht'],['train','📅','Trainingen'],['kracht','🏋️','Kracht'],['lichaam','❤️','Lichaam'],['koppel','🔗','Koppelen']];
+let TAB = 'home', FILTER = 'alles', EXQ = '';
+function nav(){
+  $('#nav').innerHTML = TABS.map(([id, ic, l]) => `<button data-tab="${id}" ${TAB===id?'aria-current="page"':''}><span>${ic}</span>${l}</button>`).join('');
+}
+$('#nav').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if(b){ TAB = b.dataset.tab; try{ localStorage.setItem('sport_tab', TAB); }catch(_){} render(); scrollTo(0,0); } });
+
+function render(){
+  measure(); LINES.length = 0; hideTip(); nav();
+  const fn = {home:vHome, train:vTrain, kracht:vKracht, lichaam:vLichaam, koppel:vKoppel}[TAB];
+  $('#app').innerHTML = fn();
+  if(TAB === 'koppel') bindKoppel();
+}
+function actRow(a, open){
+  const [lbl, ic] = SPORT[a.type] || SPORT.overig;
+  const bits = [fmtDur(a.dur), fmtKm(a.dist), a.elev ? n0(a.elev)+' hm' : '', a.kcal ? n0(a.kcal)+' kcal' : '', a.hr ? n0(a.hr)+' bpm' : '', a.vol ? n0(a.vol)+' kg volume' : ''].filter(Boolean).join(' · ');
+  const head = `<span class="ic">${ic}</span><div class="main"><div class="nm">${esc(a.name || lbl)}</div><div class="meta">${esc(fmtDate(a.start))} ${fmtTime(a.start)} · ${esc(bits)} <span class="src">${SRC[a.src]}${a.app ? ' · '+esc(a.app) : ''}</span></div></div>`;
+  if(a.ex && a.ex.length){
+    const ex = a.ex.map(x => `<div><b>${esc(x.n)}</b>: ${x.sets.map(st => st.w ? `${n1(st.w)}×${st.r||0}` : st.r ? `${st.r} reps` : st.s ? fmtDur(st.s) : st.d ? fmtKm(st.d) : '–').join(', ')}</div>`).join('');
+    return `<details class="act" ${open?'open':''}><summary>${head}</summary><div class="exlist">${ex}</div></details>`;
+  }
+  if(a.note) return `<details class="act"><summary>${head}</summary><div class="exlist">${esc(a.note)}</div></details>`;
+  return `<div class="act">${head}</div>`;
+}
+function emptyState(){
+  return `<div class="card empty"><div class="big">🔗</div><h2>Nog geen gegevens</h2><p>Koppel Strava, importeer je Apple Gezondheid-export of je oude Hevy-workouts.</p><button class="btn" onclick="TAB='koppel';render()">Naar Koppelen</button></div>`;
+}
+
+function vHome(){
+  const {acts, days} = data();
+  if(!acts.length && !Object.keys(S.daily).length) return `<h1>Sportoverzicht</h1><p class="sub">Al je sport op één plek.</p>` + emptyState();
+  const now = Date.now(), y0 = new Date(new Date().getFullYear(), 0, 1).getTime();
+  const yr = periodSum(acts, y0, now + DAY);
+  const wk = periodSum(acts, weekStart(now), now + DAY), lw = periodSum(acts, weekStart(now) - 7*DAY, weekStart(now));
+  const st = streaks(days);
+  const total = days.size;
+  // wekelijkse minuten (12 weken)
+  const wdata = [];
+  for(let i = 11; i >= 0; i--){
+    const ws = weekStart(now) - i*7*DAY, p = periodSum(acts, ws, ws + 7*DAY);
+    wdata.push({v: Math.round(p.s/60), label: fmtDate(ws, {day:'numeric', month:'short'}), dim: i === 0, tip: `Week van ${fmtDate(ws, {day:'numeric', month:'long'})}${i===0?' (bezig)':''}\n${p.n} trainingen op ${p.days} dagen\n${fmtDur(p.s)}${p.m ? ' · '+fmtKm(p.m) : ''}`});
+  }
+  // ringen
+  const ringKeys = Object.keys(S.daily).filter(k => S.daily[k].ring).sort();
+  let rings = '';
+  if(ringKeys.length){
+    const k = ringKeys[ringKeys.length-1], r = S.daily[k].ring;
+    const m = (l, v, g, u) => `<div class="meter"><div class="small"><b>${l}</b> ${n0(v)}${g ? ' / '+n0(g) : ''} ${u}${g ? ` <span class="muted">(${n0(100*v/g)}%)</span>` : ''}</div><div class="bar"><i style="width:${g ? Math.min(100, 100*v/g) : 0}%"></i></div></div>`;
+    rings = `<div class="card"><h2>Conditie-ringen <span class="muted small">· ${esc(fmtDate(keyToMs(k), {weekday:'long', day:'numeric', month:'long'}))}</span></h2>${m('Bewegen', r.move, r.moveGoal, 'kcal')}${m('Training', r.ex, r.exGoal, 'min')}${m('Staan', r.stand, r.standGoal, 'u')}<p class="muted small" style="margin:6px 0 0">Uit je laatste Gezondheid-export. Importeer opnieuw voor recente data.</p></div>`;
+  }
+  return `<h1>Sportoverzicht</h1><p class="sub">${esc(fmtDate(now, {weekday:'long', day:'numeric', month:'long'}))}</p>
+  <div class="card"><div class="small muted">Trainingsdagen in ${new Date().getFullYear()}</div><div class="hero">${n0(yr.days)}</div><div class="small" style="color:var(--ink2);margin-top:6px">${n0(yr.n)} trainingen · ${fmtDur(yr.s)}${yr.m ? ' · '+fmtKm(yr.m) : ''}</div></div>
+  <div class="tiles">
+    <div class="tile"><div class="lbl">Deze week</div><div class="val">${wk.n}</div><div class="delta">${fmtDur(wk.s)} · vorige week ${lw.n}</div></div>
+    <div class="tile"><div class="lbl">Weken op rij</div><div class="val">${st.ws}</div><div class="delta">met minstens 1 training</div></div>
+    <div class="tile"><div class="lbl">Dagen op rij</div><div class="val">${st.ds}</div><div class="delta">record: ${st.best} dagen</div></div>
+    <div class="tile"><div class="lbl">Ooit getraind</div><div class="val">${n0(total)}</div><div class="delta">dagen · sinds ${acts.length ? esc(fmtDateY(acts[acts.length-1].start)) : '–'}</div></div>
+  </div>
+  ${rings}
+  <div class="card"><h2>Kalender · 26 weken</h2><div class="scroll-x">${heatmap(days)}</div></div>
+  <div class="card"><h2>Trainingstijd per week <span class="muted small">(minuten)</span></h2>${barChart(wdata, {title:'Minuten training per week'})}</div>
+  <div class="card"><h2>Laatste trainingen</h2>${acts.slice(0, 6).map(a => actRow(a)).join('') || '<p class="muted">Nog geen trainingen.</p>'}
+  ${acts.length > 6 ? `<button class="btn ghost" onclick="TAB='train';render()">Alle ${n0(acts.length)} trainingen</button>` : ''}</div>`;
+}
+
+function vTrain(){
+  const {acts} = data();
+  if(!acts.length) return `<h1>Trainingen</h1>` + emptyState();
+  const per = {};
+  for(const a of acts){ const p = per[a.type] ||= {n:0, s:0, m:0}; p.n++; p.s += a.dur||0; p.m += a.dist||0; }
+  const types = Object.keys(per).sort((a,b) => per[b].n - per[a].n);
+  const list = FILTER === 'alles' ? acts : acts.filter(a => a.type === FILTER);
+  let html = '', month = '';
+  for(const a of list.slice(0, 400)){
+    const m = new Date(a.start).toLocaleDateString('nl-BE', {month:'long', year:'numeric'});
+    if(m !== month){ html += (month ? '</div>' : '') + `<div class="card"><h2 style="text-transform:capitalize">${esc(m)}</h2>`; month = m; }
+    html += actRow(a);
+  }
+  if(month) html += '</div>';
+  return `<h1>Trainingen</h1><p class="sub">${n0(acts.length)} trainingen uit ${[...new Set(acts.map(a => SRC[a.src]))].join(', ')}</p>
+  <div class="card scroll-x"><table><thead><tr><th>Sport</th><th class="n">Aantal</th><th class="n">Tijd</th><th class="n">Afstand</th></tr></thead><tbody>
+  ${types.map(t => `<tr><td>${SPORT[t][1]} ${SPORT[t][0]}</td><td class="n">${n0(per[t].n)}</td><td class="n">${n0(per[t].s/3600)} u</td><td class="n">${per[t].m ? n0(per[t].m/1000)+' km' : '–'}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="chips" id="chips">${['alles', ...types].map(t => `<button class="chip" data-f="${t}" aria-pressed="${FILTER===t}">${t==='alles' ? 'Alles' : SPORT[t][1]+' '+SPORT[t][0]}</button>`).join('')}</div>
+  ${html}${list.length > 400 ? '<p class="muted small">De 400 recentste worden getoond.</p>' : ''}`;
+}
+document.addEventListener('click', e => { const c = e.target.closest('#chips [data-f]'); if(c){ FILTER = c.dataset.f; render(); } });
+
+function vKracht(){
+  const {acts} = data();
+  const ses = acts.filter(a => a.ex && a.ex.length);
+  if(!ses.length) return `<h1>Kracht</h1><p class="sub">Oefeningen, gewichten en records.</p><div class="card empty"><div class="big">🏋️</div><p>Nog geen krachttrainingen met oefeningen. Importeer je Hevy-export of voeg een sessie toe bij Koppelen.</p><button class="btn" onclick="TAB='koppel';render()">Naar Koppelen</button></div>`;
+  const ex = {};
+  let totVol = 0, totSets = 0;
+  for(const a of ses) for(const x of a.ex){
+    const e = ex[x.n] ||= {n:x.n, sets:0, maxW:0, maxWr:0, e1:0, last:0, first:Infinity, vol:0, maxR:0};
+    for(const s of x.sets){
+      if(s.t === 'warmup') continue;
+      e.sets++; totSets++;
+      const w = s.w || 0, r = s.r || 0;
+      e.vol += w*r; totVol += w*r;
+      if(w > e.maxW || (w === e.maxW && r > e.maxWr)){ e.maxW = w; e.maxWr = r; }
+      if(r > e.maxR) e.maxR = r;
+      if(w && r && r <= 12) e.e1 = Math.max(e.e1, w * (1 + r/30));
+    }
+    e.last = Math.max(e.last, a.start); e.first = Math.min(e.first, a.start);
+  }
+  const rows = Object.values(ex).filter(e => !EXQ || e.n.toLowerCase().includes(EXQ.toLowerCase())).sort((a,b) => b.sets - a.sets);
+  // volume per maand (12 maanden)
+  const mdata = [], now = new Date();
+  for(let i = 11; i >= 0; i--){
+    const a0 = new Date(now.getFullYear(), now.getMonth()-i, 1).getTime(), a1 = new Date(now.getFullYear(), now.getMonth()-i+1, 1).getTime();
+    let v = 0, n = 0; for(const a of ses) if(a.start >= a0 && a.start < a1){ v += a.vol||0; n++; }
+    mdata.push({v: Math.round(v/1000*10)/10, label: new Date(a0).toLocaleDateString('nl-BE', {month:'short'}), tip: `${new Date(a0).toLocaleDateString('nl-BE', {month:'long', year:'numeric'})}\n${n} sessies · ${n1(v/1000)} ton volume`});
+  }
+  return `<h1>Kracht</h1><p class="sub">Uit Hevy en je eigen sessies</p>
+  <div class="tiles">
+    <div class="tile"><div class="lbl">Sessies</div><div class="val">${n0(ses.length)}</div></div>
+    <div class="tile"><div class="lbl">Sets</div><div class="val">${n0(totSets)}</div></div>
+    <div class="tile"><div class="lbl">Totaal volume</div><div class="val">${n1(totVol/1000)} t</div><div class="delta">gewicht × herhalingen</div></div>
+    <div class="tile"><div class="lbl">Oefeningen</div><div class="val">${n0(Object.keys(ex).length)}</div></div>
+  </div>
+  <div class="card"><h2>Volume per maand <span class="muted small">(ton)</span></h2>${barChart(mdata, {fmt:n1, title:'Volume per maand in ton'})}</div>
+  <div class="card"><h2>Records per oefening</h2>
+  <input type="search" id="exq" placeholder="Zoek oefening…" value="${esc(EXQ)}">
+  <div class="scroll-x"><table><thead><tr><th>Oefening</th><th class="n">Zwaarst (kg)</th><th class="n">1RM (kg)</th><th class="n">Sets</th><th class="n">Laatst</th></tr></thead><tbody>
+  ${rows.slice(0, 150).map(e => `<tr><td>${esc(e.n)}</td><td class="n">${e.maxW ? n1(e.maxW)+'×'+e.maxWr : e.maxR ? e.maxR+' reps' : '–'}</td><td class="n">${e.e1 ? n0(e.e1) : '–'}</td><td class="n">${n0(e.sets)}</td><td class="n">${esc(fmtDate(e.last, {day:'numeric', month:'numeric', year:'2-digit'}))}</td></tr>`).join('')}
+  </tbody></table></div><p class="muted small">Geschat 1RM = Epley-formule op sets van max. 12 herhalingen. Opwarmsets tellen niet mee.</p></div>
+  <div class="card"><h2>Recente sessies</h2>${ses.slice(0, 15).map((a, i) => actRow(a, i === 0)).join('')}</div>`;
+}
+document.addEventListener('input', e => { if(e.target.id === 'exq'){ EXQ = e.target.value; const pos = e.target.selectionStart; render(); const i = $('#exq'); i.focus(); i.setSelectionRange(pos, pos); } });
+
+function vLichaam(){
+  const D = S.daily, keys = Object.keys(D).sort();
+  if(!keys.length) return `<h1>Lichaam</h1><p class="sub">Stappen, slaap, gewicht, voeding</p><div class="card empty"><div class="big">❤️</div><p>Deze gegevens komen uit Apple Gezondheid (ook MyFitnessPal, Technogym en je weegschaal komen daar binnen).</p><button class="btn" onclick="TAB='koppel';render()">Gezondheid importeren</button></div>`;
+  const lastK = keys[keys.length-1], lastMs = keyToMs(lastK);
+  const avg = (f, n) => { let s = 0, c = 0; for(let i = 0; i < n; i++){ const d = D[dk(lastMs - i*DAY)]; if(d && d[f]){ s += d[f]; c++; } } return c ? s/c : 0; };
+  const wpts = keys.filter(k => D[k].weight).map(k => ({t:keyToMs(k), v:D[k].weight, tip:`${fmtDateY(keyToMs(k))}\n${n1(D[k].weight)} kg`}));
+  const wl = wpts[wpts.length-1], w30 = wpts.filter(p => p.t <= (wl ? wl.t : 0) - 30*DAY).pop();
+  const steps = [], sleep = [];
+  for(let i = 29; i >= 0; i--){ const t = lastMs - i*DAY, d = D[dk(t)] || {};
+    steps.push({v:Math.round(d.steps||0), label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${n0(d.steps)} stappen`}); }
+  for(let i = 13; i >= 0; i--){ const t = lastMs - i*DAY, d = D[dk(t)] || {};
+    sleep.push({v:Math.round((d.sleep||0)/6)/10, label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`Nacht naar ${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${d.sleep ? fmtDur(d.sleep*60) : 'geen slaapdata'}`}); }
+  for(const k of keys){ const d = D[k]; if(!d.active && d.ring && d.ring.move) d.active = d.ring.move; }
+  const eat = avg('eaten', 7), prot = avg('protein', 7), act = avg('active', 7);
+  return `<h1>Lichaam</h1><p class="sub">Uit Apple Gezondheid · tot ${esc(fmtDateY(lastMs))}</p>
+  <div class="tiles">
+    <div class="tile"><div class="lbl">Gewicht</div><div class="val">${wl ? n1(wl.v)+' kg' : '–'}</div><div class="delta">${wl && w30 ? (wl.v - w30.v >= 0 ? '+' : '')+n1(wl.v - w30.v)+' kg in 30 dagen' : wl ? esc(fmtDateY(wl.t)) : 'geen metingen'}</div></div>
+    <div class="tile"><div class="lbl">Stappen / dag</div><div class="val">${n0(avg('steps', 7))}</div><div class="delta">gem. 7 dagen · 30 d: ${n0(avg('steps', 30))}</div></div>
+    <div class="tile"><div class="lbl">Slaap / nacht</div><div class="val">${avg('sleep', 7) ? fmtDur(avg('sleep', 7)*60) : '–'}</div><div class="delta">gemiddelde 7 nachten</div></div>
+    <div class="tile"><div class="lbl">Rustpols</div><div class="val">${avg('rhr', 7) ? n0(avg('rhr', 7)) : '–'}</div><div class="delta">bpm · gem. 7 dagen</div></div>
+    <div class="tile"><div class="lbl">Gegeten / dag</div><div class="val">${eat ? n0(eat) : '–'}</div><div class="delta">kcal · MyFitnessPal (7 d)</div></div>
+    <div class="tile"><div class="lbl">Eiwitten / dag</div><div class="val">${prot ? n0(prot)+' g' : '–'}</div><div class="delta">${prot && wl ? n1(prot/wl.v)+' g per kg' : 'gem. 7 dagen'}</div></div>
+    <div class="tile"><div class="lbl">Actief verbrand</div><div class="val">${act ? n0(act) : '–'}</div><div class="delta">kcal / dag (7 d)</div></div>
+    <div class="tile"><div class="lbl">Dagen met data</div><div class="val">${n0(keys.length)}</div><div class="delta">sinds ${esc(fmtDateY(keyToMs(keys[0])))}</div></div>
+  </div>
+  <div class="card"><h2>Gewicht <span class="muted small">(kg)</span></h2>${lineChart(wpts.slice(-400), {title:'Gewicht'})}</div>
+  <div class="card"><h2>Stappen · 30 dagen</h2>${barChart(steps, {title:'Stappen per dag'})}</div>
+  <div class="card"><h2>Slaap · 14 nachten <span class="muted small">(uren)</span></h2>${barChart(sleep, {fmt:n1, title:'Uren slaap per nacht', h:150})}</div>`;
+}
+
+/* ---------- koppelen ---------- */
+const REDIRECT = location.origin + location.pathname;
+function vKoppel(){
+  const c = S.cfg, sv = c.strava || {};
+  const last = (t) => t ? 'Laatst bijgewerkt: ' + new Date(t).toLocaleString('nl-BE', {dateStyle:'medium', timeStyle:'short'}) : '';
+  const hh = S.health.length || Object.keys(S.daily).length;
+  return `<h1>Koppelen</h1><p class="sub">Alles blijft op dit toestel in deze browser. Er gaat niets naar een server, behalve je eigen verbinding met Strava/Hevy.</p>
+
+  <div class="card"><h2>❤️ Apple Gezondheid</h2>
+  <p class="small">${hh ? `<span class="ok">✓ Geïmporteerd</span> · ${n0(S.health.length)} workouts, ${n0(Object.keys(S.daily).length)} dagen<br>${last(c.healthAt)}` : 'Hier zitten je Conditie-ringen, stappen, slaap, gewicht, workouts van je Watch en alles wat andere apps naar Gezondheid sturen (MyFitnessPal, Technogym, Runna, …).'}</p>
+  <ol class="steps small"><li>Open <b>Gezondheid</b> → tik op je profielfoto (rechtsboven).</li><li>Helemaal onderaan: <b>Exporteer alle gezondheidsgegevens</b>. Dit kan een paar minuten duren.</li><li>Kies <b>Bewaar in Bestanden</b>.</li><li>Kies hieronder dat zip-bestand (of de .xml erin).</li></ol>
+  <label class="btn">📂 Kies Gezondheid-export<input type="file" id="fHealth" accept=".zip,.xml,application/zip,text/xml" hidden></label>
+  <div class="prog" id="pHealth" hidden><i></i></div><div class="msg" id="mHealth"></div></div>
+
+  <div class="card"><h2>🟧 Strava</h2>
+  ${sv.refresh ? `<p class="small"><span class="ok">✓ Verbonden</span>${sv.name ? ' als '+esc(sv.name) : ''} · ${n0(S.strava.length)} activiteiten<br>${last(c.stravaAt)}</p>
+    <button class="btn" id="bStrava">🔄 Bijwerken</button><button class="btn ghost" id="bStravaFull">Alles opnieuw ophalen</button><button class="btn danger" id="bStravaOff">Ontkoppelen</button>`
+  : `<p class="small">Strava laat geen gewone app-login toe zonder eigen "API-app". Die maak je één keer gratis aan (2 minuten):</p>
+    <ol class="steps small"><li>Ga op je pc of gsm naar <b>strava.com/settings/api</b> en log in.</li><li>Vul in: naam <i>Sportoverzicht</i>, categorie <i>Visualizer</i>, website <i>${esc(location.origin)}</i>.</li><li>Bij <b>Authorization Callback Domain</b>: <code>${esc(location.hostname)}</code></li><li>Kopieer de <b>Client ID</b> en het <b>Client Secret</b> hieronder.</li></ol>
+    <div class="row"><div><label class="small">Client ID<input type="text" id="sId" inputmode="numeric" value="${esc(sv.id||'')}"></label></div><div><label class="small">Client Secret<input type="password" id="sSecret" value="${esc(sv.secret||'')}"></label></div></div>
+    <button class="btn" id="bStravaConnect">Verbind met Strava</button>`}
+  <div class="msg" id="mStrava"></div>
+  <p class="muted small">Runna en Komoot: zet in die apps de koppeling met Strava aan, dan komen je runs en tochten hier ook binnen.</p></div>
+
+  <div class="card"><h2>⚫ Hevy</h2>
+  <p class="small">${S.hevy.length ? `<span class="ok">✓ ${n0(S.hevy.length)} workouts</span> · ${last(c.hevyAt)}` : 'Je oude krachttrainingen met alle oefeningen, sets en gewichten.'}</p>
+  <h3>Optie 1: CSV-export (werkt altijd)</h3>
+  <ol class="steps small"><li>Hevy → <b>Profiel</b> → ⚙️ <b>Instellingen</b> → <b>Gegevens exporteren &amp; importeren</b> → <b>Workouts exporteren</b>.</li><li>Bewaar het .csv-bestand in Bestanden en kies het hier.</li></ol>
+  <label class="btn">📂 Kies Hevy-CSV<input type="file" id="fHevy" accept=".csv,text/csv" hidden></label>
+  <h3>Optie 2: API-sleutel (Hevy Pro)</h3>
+  <p class="small">Hevy → Instellingen → <b>Developer</b> → API-sleutel kopiëren.</p>
+  <input type="password" id="hKey" placeholder="API-sleutel" value="${esc(c.hevyKey||'')}">
+  <button class="btn ghost" id="bHevy">Ophalen via API</button>
+  <div class="msg" id="mHevy"></div></div>
+
+  <div class="card"><h2>📋 Coach-app &amp; Jims</h2>
+  <p class="small">Daarvoor bestaat geen openbare koppeling. Kijk in de app van je coach of je <b>Apple Gezondheid</b> kunt aanzetten, dan komen die trainingen mee met de Gezondheid-export. Anders voeg je ze hier zelf toe:</p>
+  <div class="row"><div><label class="small">Datum<input type="date" id="mDate" value="${dk(Date.now())}"></label></div><div><label class="small">Uur<input type="time" id="mTime" value="18:00"></label></div></div>
+  <div class="row"><div><label class="small">Soort<select id="mType">${Object.entries(SPORT).map(([k, v]) => `<option value="${k}" ${k==='coach'?'selected':''}>${v[1]} ${v[0]}</option>`).join('')}</select></label></div><div><label class="small">Minuten<input type="number" id="mMin" value="60" min="1" inputmode="numeric"></label></div></div>
+  <label class="small">Naam / notitie (bv. oefeningen van je coach)<textarea id="mNote" rows="2" placeholder="Bv. Leg day: squat 4×8 80 kg, …"></textarea></label>
+  <button class="btn" id="bManual">+ Training toevoegen</button><div class="msg" id="mManual"></div>
+  ${S.manual.length ? `<p class="small muted">${S.manual.length} zelf toegevoegd. <a href="#" id="undoManual">Laatste verwijderen</a></p>` : ''}</div>
+
+  <div class="card"><h2>💾 Back-up</h2>
+  <p class="small">Je gegevens staan alleen in deze browser. Maak af en toe een back-up, of zet ze zo over naar een ander toestel.</p>
+  <button class="btn ghost" id="bExport">Back-up downloaden</button><label class="btn ghost">Back-up terugzetten<input type="file" id="fBackup" accept=".json,application/json" hidden></label>
+  <button class="btn danger" id="bWipe">Alles wissen</button><div class="msg" id="mBackup"></div></div>
+  <p class="muted small" style="text-align:center">Sportoverzicht v${VERSIE}</p>`;
+}
+
+function msg(id, t, err){ const m = $('#'+id); if(m){ m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); } }
+function bindKoppel(){
+  const on = (id, ev, fn) => { const el = $('#'+id); if(el) el.addEventListener(ev, fn); };
+  on('fHealth', 'change', e => e.target.files[0] && importHealth(e.target.files[0]));
+  on('fHevy', 'change', e => e.target.files[0] && importHevyCSV(e.target.files[0]));
+  on('bHevy', 'click', hevyApi);
+  on('bStravaConnect', 'click', stravaConnect);
+  on('bStrava', 'click', () => stravaSync(false));
+  on('bStravaFull', 'click', () => stravaSync(true));
+  on('bStravaOff', 'click', async () => { if(!confirm('Strava ontkoppelen en Strava-activiteiten verwijderen?')) return; S.strava = []; delete S.cfg.strava; await save('strava', 'cfg'); render(); });
+  on('bManual', 'click', addManual);
+  on('undoManual', 'click', async e => { e.preventDefault(); S.manual.pop(); await save('manual'); render(); });
+  on('bExport', 'click', exportBackup);
+  on('fBackup', 'change', e => e.target.files[0] && importBackup(e.target.files[0]));
+  on('bWipe', 'click', async () => { if(!confirm('Echt alles wissen op dit toestel?')) return; S.strava = []; S.hevy = []; S.health = []; S.manual = []; S.daily = {}; S.cfg = {}; await save(...KEYS); render(); });
+}
+
+/* ---------- Apple Gezondheid ---------- */
+function attrs(s){ const o = {}, re = /([\w:]+)="([^"]*)"/g; let m; while((m = re.exec(s))) o[m[1]] = m[2]; return o; }
+function hkDate(s){ // "2024-03-18 17:30:00 +0100"
+  if(!s) return NaN;
+  const t = Date.parse(s.slice(0,10) + 'T' + s.slice(11,19) + (s.length >= 25 ? s.slice(20,23) + ':' + s.slice(23,25) : ''));
+  return isNaN(t) ? Date.parse(s) : t;
+}
+const toKcal = (v, u) => u === 'kJ' ? v/4.184 : v;
+const toM = (v, u) => u === 'km' ? v*1000 : u === 'mi' ? v*1609.34 : u === 'm' ? v : u === 'yd' ? v*0.9144 : v*1000;
+
+async function importHealth(file){
+  const bar = $('#pHealth'), fill = bar.firstElementChild;
+  bar.hidden = false; msg('mHealth', 'Bezig met lezen… laat dit scherm open.');
+  const WANT = {StepCount:'steps', ActiveEnergyBurned:'active', DietaryEnergyConsumed:'eaten', DietaryProtein:'protein', BodyMass:'weight', RestingHeartRate:'rhr'};
+  const M = {steps:{}, active:{}, eaten:{}, protein:{}, sleep:{}}, weight = {}, rhr = {}, rings = {}, acts = [];
+  let cur = null, buf = '', nTags = 0;
+  const add = (map, day, src, v) => { const d = map[day] || (map[day] = {}); d[src] = (d[src]||0) + v; };
+  function finishWorkout(){
+    const a = cur; cur = null;
+    if(!a || isNaN(a.start)) return;
+    acts.push(a);
+  }
+  function tag(t){
+    nTags++;
+    if(t.startsWith('Record ')){
+      const q = t.indexOf('type="'); if(q < 0) return;
+      const ty = t.slice(q+6, t.indexOf('"', q+6));
+      if(ty.startsWith('HKQuantityTypeIdentifier')){
+        const k = WANT[ty.slice(24)]; if(!k) return;
+        const a = attrs(t), v = parseFloat(a.value); if(isNaN(v) || !a.startDate) return;
+        const day = a.startDate.slice(0,10), src = a.sourceName || '?';
+        if(k === 'weight') weight[day] = a.unit === 'lb' ? v*0.45359 : a.unit === 'g' ? v/1000 : v;
+        else if(k === 'rhr'){ const r = rhr[day] || (rhr[day] = [0,0]); r[0] += v; r[1]++; }
+        else if(k === 'active' || k === 'eaten') add(M[k], day, src, toKcal(v, a.unit));
+        else add(M[k], day, src, v);
+      } else if(ty === 'HKCategoryTypeIdentifierSleepAnalysis'){
+        const a = attrs(t); if(!/Asleep/.test(a.value || '')) return;
+        const min = (hkDate(a.endDate) - hkDate(a.startDate)) / 6e4;
+        if(min > 0 && min < 1440) add(M.sleep, a.endDate.slice(0,10), a.sourceName || '?', min);
+      }
+    } else if(t.startsWith('Workout ')){
+      if(cur) finishWorkout();
+      const a = attrs(t), start = hkDate(a.startDate);
+      let dur = parseFloat(a.duration) || 0; const du = a.durationUnit || 'min';
+      dur = du === 'min' ? dur*60 : du === 'h' ? dur*3600 : dur;
+      if(!dur) dur = (hkDate(a.endDate) - start)/1000;
+      const type = normHK(a.workoutActivityType);
+      cur = {id:'hk-'+start, src:'health', app:a.sourceName, type, name:SPORT[type][0] + (type === 'overig' ? ' ('+(a.workoutActivityType||'').replace('HKWorkoutActivityType','')+')' : ''), start, dur:Math.round(dur)};
+      if(a.totalDistance && +a.totalDistance) cur.dist = Math.round(toM(+a.totalDistance, a.totalDistanceUnit));
+      if(a.totalEnergyBurned && +a.totalEnergyBurned) cur.kcal = Math.round(toKcal(+a.totalEnergyBurned, a.totalEnergyBurnedUnit));
+      if(t.endsWith('/')) finishWorkout();
+    } else if(t.startsWith('WorkoutStatistics ') && cur){
+      const a = attrs(t), ty = a.type || '';
+      if(/ActiveEnergyBurned/.test(ty) && a.sum) cur.kcal = Math.round(toKcal(+a.sum, a.unit));
+      else if(/Distance/.test(ty) && a.sum && !cur.dist) cur.dist = Math.round(toM(+a.sum, a.unit));
+      else if(/HeartRate$/.test(ty) && a.average) cur.hr = Math.round(+a.average);
+    } else if(t === '/Workout'){
+      finishWorkout();
+    } else if(t.startsWith('ActivitySummary ')){
+      const a = attrs(t), k = a.dateComponents;
+      if(k && k > '2000') rings[k] = {move:+a.activeEnergyBurned||0, moveGoal:+a.activeEnergyBurnedGoal||+a.appleMoveTimeGoal||0, ex:+a.appleExerciseTime||0, exGoal:+a.appleExerciseTimeGoal||30, stand:+a.appleStandHours||0, standGoal:+a.appleStandHoursGoal||12};
+    }
+  }
+  function feed(text){
+    buf += text; let pos = 0;
+    for(;;){
+      const i = buf.indexOf('<', pos); if(i < 0){ pos = buf.length; break; }
+      const j = buf.indexOf('>', i); if(j < 0){ pos = i; break; }
+      const c = buf.charCodeAt(i+1);
+      if(c === 82 || c === 87 || c === 47 || c === 65) tag(buf.slice(i+1, j)); // R W / A
+      pos = j + 1;
+    }
+    buf = buf.slice(pos);
+  }
+  const dec = new TextDecoder();
+  try{
+    const isZip = /\.zip$/i.test(file.name) || file.type.includes('zip');
+    let found = false, uz = null;
+    if(isZip){
+      if(!window.fflate) throw new Error('Het zip-onderdeel kon niet laden (geen internet?). Open het zip-bestand in Bestanden en kies de .xml.');
+      uz = new fflate.Unzip(); uz.register(fflate.UnzipInflate);
+      uz.onfile = f => {
+        if(!found && /\.xml$/i.test(f.name) && !/cda/i.test(f.name) && !/__MACOSX/.test(f.name)){
+          found = true;
+          f.ondata = (err, d, fin) => { if(err) throw err; feed(dec.decode(d, {stream:!fin})); };
+          f.start();
+        }
+      };
+    }
+    const reader = file.stream().getReader();
+    let read = 0, lastUi = 0;
+    for(;;){
+      const {done, value} = await reader.read();
+      if(done){ if(uz) uz.push(new Uint8Array(0), true); else feed(dec.decode()); break; }
+      read += value.length;
+      if(uz) uz.push(value); else feed(dec.decode(value, {stream:true}));
+      if(Date.now() - lastUi > 250){ lastUi = Date.now(); fill.style.width = (100*read/file.size).toFixed(1)+'%'; msg('mHealth', `Bezig… ${n0(read/1048576)} / ${n0(file.size/1048576)} MB · ${n0(acts.length)} workouts gevonden`); await new Promise(r => setTimeout(r)); }
+    }
+    if(cur) finishWorkout();
+    if(isZip && !found) throw new Error('Geen export-bestand (.xml) gevonden in de zip.');
+    if(!nTags) throw new Error('Dit lijkt geen Apple Gezondheid-export.');
+    // per dag: hoogste bron nemen (iPhone + Watch tellen anders dubbel)
+    const daily = {}, mx = o => Math.max(...Object.values(o));
+    const get = k => daily[k] || (daily[k] = {});
+    for(const f of Object.keys(M)) for(const [k, o] of Object.entries(M[f])) get(k)[f] = Math.round(mx(o)*10)/10;
+    for(const [k, v] of Object.entries(weight)) get(k).weight = Math.round(v*10)/10;
+    for(const [k, [s, n]] of Object.entries(rhr)) get(k).rhr = Math.round(s/n);
+    for(const [k, r] of Object.entries(rings)) get(k).ring = r;
+    S.health = acts; S.daily = daily; S.cfg.healthAt = Date.now();
+    await save('health', 'daily', 'cfg');
+    fill.style.width = '100%';
+    render();
+    msg('mHealth', `✓ Klaar: ${n0(acts.length)} workouts en ${n0(Object.keys(daily).length)} dagen met gezondheidsdata.`);
+  }catch(e){
+    console.error(e); msg('mHealth', 'Mislukt: ' + (e.message || e), true);
+  }
+}
+
+/* ---------- Hevy ---------- */
+function parseCSV(text){
+  const rows = []; let row = [], f = '', q = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(q){ if(c === '"'){ if(text[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += c; }
+    else if(c === '"') q = true;
+    else if(c === ','){ row.push(f); f = ''; }
+    else if(c === '\n' || c === '\r'){ if(c === '\r' && text[i+1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
+    else f += c;
+  }
+  if(f || row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r => r.length > 1 || r[0]);
+}
+const MONTHS = {jan:0,feb:1,mar:2,mrt:2,apr:3,may:4,mei:4,jun:5,jul:6,aug:7,sep:8,oct:9,okt:9,nov:10,dec:11};
+function parseHevyDate(s){
+  s = (s||'').trim();
+  if(/^\d{4}-\d\d-\d\d/.test(s)){ const t = Date.parse(s.replace(' ', 'T')); if(!isNaN(t)) return t; }
+  const m = s.match(/(\d{1,2})\s+([A-Za-zé.]+)\s+(\d{4}),?\s+(\d{1,2}):(\d{2})/);
+  if(m){ const mo = MONTHS[m[2].toLowerCase().slice(0,3)]; if(mo !== undefined) return new Date(+m[3], mo, +m[1], +m[4], +m[5]).getTime(); }
+  const t = Date.parse(s); return isNaN(t) ? null : t;
+}
+function finishHevy(a){
+  a.vol = 0;
+  for(const x of a.ex) for(const s of x.sets) if(s.t !== 'warmup') a.vol += (s.w||0)*(s.r||0);
+  a.vol = Math.round(a.vol);
+  return a;
+}
+async function importHevyCSV(file){
+  try{
+    const rows = parseCSV(await file.text());
+    const h = rows.shift().map(x => x.trim().toLowerCase());
+    const ix = n => h.indexOf(n);
+    const iT = ix('title'), iS = ix('start_time'), iE = ix('end_time'), iX = ix('exercise_title'), iTy = ix('set_type'),
+          iKg = ix('weight_kg'), iLb = ix('weight_lbs'), iR = ix('reps'), iD = ix('distance_km'), iDm = ix('distance_miles'), iSec = ix('duration_seconds'), iDesc = ix('description');
+    if(iS < 0 || iX < 0) throw new Error('Dit lijkt geen Hevy-export (kolommen start_time / exercise_title ontbreken).');
+    const map = new Map();
+    for(const r of rows){
+      const start = parseHevyDate(r[iS]); if(!start) continue;
+      const key = start + '|' + r[iT];
+      let a = map.get(key);
+      if(!a){ const end = parseHevyDate(r[iE]); a = {id:'hevy-'+start, src:'hevy', type:'kracht', name:r[iT] || 'Workout', start, dur: end && end > start ? Math.round((end-start)/1000) : 0, ex:[], note:iDesc >= 0 ? r[iDesc] : ''}; map.set(key, a); }
+      const n = r[iX]; let x = a.ex[a.ex.length-1];
+      if(!x || x.n !== n){ x = {n, sets:[]}; a.ex.push(x); }
+      const w = iKg >= 0 && r[iKg] !== '' ? +r[iKg] : iLb >= 0 && r[iLb] !== '' ? +r[iLb]*0.45359 : 0;
+      const d = iD >= 0 && r[iD] !== '' ? +r[iD]*1000 : iDm >= 0 && r[iDm] !== '' ? +r[iDm]*1609.34 : 0;
+      x.sets.push({t:(r[iTy]||'normal').toLowerCase(), w:Math.round(w*10)/10 || 0, r:+r[iR] || 0, d:Math.round(d) || 0, s:+r[iSec] || 0});
+    }
+    const acts = [...map.values()].map(finishHevy);
+    if(!acts.length) throw new Error('Geen workouts gevonden in dit bestand.');
+    const byId = new Map(S.hevy.map(a => [a.id, a])); for(const a of acts) byId.set(a.id, a);
+    S.hevy = [...byId.values()]; S.cfg.hevyAt = Date.now();
+    await save('hevy', 'cfg'); render();
+    msg('mHevy', `✓ ${n0(acts.length)} workouts geïmporteerd.`);
+  }catch(e){ console.error(e); msg('mHevy', 'Mislukt: ' + (e.message || e), true); }
+}
+async function hevyApi(){
+  const key = $('#hKey').value.trim();
+  if(!key) return msg('mHevy', 'Vul eerst je API-sleutel in.', true);
+  S.cfg.hevyKey = key; await save('cfg');
+  try{
+    const out = []; let page = 1, pages = 1;
+    do{
+      msg('mHevy', `Ophalen… pagina ${page}${pages > 1 ? ' / '+pages : ''}`);
+      const r = await fetch(`https://api.hevyapp.com/v1/workouts?page=${page}&pageSize=10`, {headers:{'api-key':key, 'accept':'application/json'}});
+      if(r.status === 401 || r.status === 403) throw new Error('API-sleutel niet geldig (of geen Hevy Pro).');
+      if(r.status === 404 && page > 1) break;
+      if(!r.ok) throw new Error('Hevy antwoordde met fout ' + r.status);
+      const j = await r.json(); pages = j.page_count || 1;
+      for(const w of j.workouts || []){
+        const start = Date.parse(w.start_time), end = Date.parse(w.end_time);
+        out.push(finishHevy({id:'hevy-'+start, src:'hevy', type:'kracht', name:w.title || 'Workout', start, dur:end > start ? Math.round((end-start)/1000) : 0, note:w.description || '',
+          ex:(w.exercises || []).map(x => ({n:x.title, sets:(x.sets || []).map(s => ({t:s.type || 'normal', w:s.weight_kg || 0, r:s.reps || 0, d:s.distance_meters || 0, s:s.duration_seconds || 0}))}))}));
+      }
+      page++;
+    } while(page <= pages);
+    const byId = new Map(S.hevy.map(a => [a.id, a])); for(const a of out) byId.set(a.id, a);
+    S.hevy = [...byId.values()]; S.cfg.hevyAt = Date.now();
+    await save('hevy', 'cfg'); render();
+    msg('mHevy', `✓ ${n0(out.length)} workouts opgehaald via de API.`);
+  }catch(e){
+    console.error(e);
+    msg('mHevy', 'Mislukt: ' + (e.message === 'Failed to fetch' || e.name === 'TypeError' ? 'Hevy laat geen verbinding toe vanuit een browser. Gebruik optie 1 (CSV-export).' : e.message), true);
+  }
+}
+
+/* ---------- Strava ---------- */
+async function stravaConnect(){
+  const id = $('#sId').value.trim(), secret = $('#sSecret').value.trim();
+  if(!id || !secret) return msg('mStrava', 'Vul Client ID en Client Secret in.', true);
+  const state = Math.random().toString(36).slice(2);
+  S.cfg.strava = {id, secret, state}; await save('cfg');
+  location.href = 'https://www.strava.com/oauth/authorize?' + new URLSearchParams({client_id:id, response_type:'code', redirect_uri:REDIRECT, approval_prompt:'auto', scope:'read,activity:read_all', state});
+}
+async function stravaCallback(){
+  const p = new URLSearchParams(location.search);
+  if(!p.has('code') && !p.has('error')) return;
+  history.replaceState(null, '', REDIRECT);
+  TAB = 'koppel'; render();
+  const sv = S.cfg.strava || {};
+  if(p.get('error')) return msg('mStrava', 'Strava gaf geen toestemming.', true);
+  if(!sv.id || p.get('state') !== sv.state) return msg('mStrava', 'Ongeldige terugkeer van Strava. Probeer opnieuw.', true);
+  if(!/activity:read/.test(p.get('scope') || '')) return msg('mStrava', 'Je moet het vakje "activiteiten bekijken" aanvinken bij Strava. Probeer opnieuw.', true);
+  try{
+    msg('mStrava', 'Verbinden…');
+    const r = await fetch('https://www.strava.com/oauth/token', {method:'POST', body:new URLSearchParams({client_id:sv.id, client_secret:sv.secret, code:p.get('code'), grant_type:'authorization_code'})});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.message || 'fout '+r.status);
+    Object.assign(sv, {access:j.access_token, refresh:j.refresh_token, exp:j.expires_at, name:j.athlete ? [j.athlete.firstname, j.athlete.lastname].filter(Boolean).join(' ') : ''});
+    delete sv.state; S.cfg.strava = sv; await save('cfg');
+    await stravaSync(true);
+  }catch(e){ console.error(e); msg('mStrava', 'Verbinden mislukt: ' + e.message, true); }
+}
+async function stravaToken(){
+  const sv = S.cfg.strava;
+  if(sv.access && sv.exp*1000 > Date.now() + 120000) return sv.access;
+  const r = await fetch('https://www.strava.com/oauth/token', {method:'POST', body:new URLSearchParams({client_id:sv.id, client_secret:sv.secret, grant_type:'refresh_token', refresh_token:sv.refresh})});
+  const j = await r.json();
+  if(!r.ok) throw new Error('Kon niet opnieuw aanmelden bij Strava (' + (j.message || r.status) + '). Ontkoppel en verbind opnieuw.');
+  Object.assign(sv, {access:j.access_token, refresh:j.refresh_token, exp:j.expires_at}); await save('cfg');
+  return sv.access;
+}
+async function stravaSync(full){
+  try{
+    const tok = await stravaToken();
+    const after = full || !S.strava.length ? 0 : Math.floor(Math.max(...S.strava.map(a => a.start))/1000) - 3*86400;
+    const out = []; let page = 1;
+    for(;;){
+      msg('mStrava', `Ophalen… ${out.length} activiteiten`);
+      const r = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=200&page=${page}&after=${after}`, {headers:{Authorization:'Bearer '+tok}});
+      if(r.status === 429) throw new Error('Strava-limiet bereikt. Probeer binnen 15 minuten opnieuw.');
+      if(!r.ok) throw new Error('Strava antwoordde met fout ' + r.status);
+      const j = await r.json();
+      for(const a of j){
+        const type = normStrava(a.sport_type || a.type);
+        out.push({id:'strava-'+a.id, src:'strava', type, name:a.name, start:Date.parse(a.start_date), dur:a.moving_time || a.elapsed_time || 0,
+          dist:Math.round(a.distance) || 0, elev:Math.round(a.total_elevation_gain) || 0, hr:a.average_heartrate ? Math.round(a.average_heartrate) : 0, kcal:a.kilojoules ? Math.round(a.kilojoules) : 0});
+      }
+      if(j.length < 200) break;
+      page++;
+    }
+    const byId = new Map(full ? [] : S.strava.map(a => [a.id, a])); for(const a of out) byId.set(a.id, a);
+    S.strava = [...byId.values()]; S.cfg.stravaAt = Date.now();
+    await save('strava', 'cfg'); render();
+    msg('mStrava', `✓ ${n0(out.length)} ${full ? '' : 'nieuwe/gewijzigde '}activiteiten opgehaald. Totaal: ${n0(S.strava.length)}.`);
+  }catch(e){ console.error(e); msg('mStrava', 'Mislukt: ' + (e.message === 'Failed to fetch' ? 'geen verbinding met Strava.' : e.message), true); }
+}
+
+/* ---------- handmatig ---------- */
+async function addManual(){
+  const d = $('#mDate').value, t = $('#mTime').value || '12:00', min = +$('#mMin').value, type = $('#mType').value, note = $('#mNote').value.trim();
+  if(!d || !min) return msg('mManual', 'Vul datum en minuten in.', true);
+  const start = new Date(d + 'T' + t).getTime();
+  S.manual.push({id:'man-'+start, src:'manual', type, name: note ? note.split(/[\n:]/)[0].slice(0, 60) : SPORT[type][0], note, start, dur:min*60});
+  await save('manual'); render(); msg('mManual', '✓ Toegevoegd.');
+}
+
+/* ---------- back-up ---------- */
+function exportBackup(){
+  const cfg = {...S.cfg}; if(cfg.strava) cfg.strava = {...cfg.strava, secret:undefined, access:undefined, refresh:undefined};
+  delete cfg.hevyKey;
+  const blob = new Blob([JSON.stringify({app:'sportoverzicht', v:1, at:Date.now(), ...S, cfg})], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sportoverzicht-' + dk(Date.now()) + '.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  msg('mBackup', 'Back-up gemaakt (zonder wachtwoorden/sleutels).');
+}
+async function importBackup(file){
+  try{
+    const j = JSON.parse(await file.text());
+    if(j.app !== 'sportoverzicht') throw new Error('Geen Sportoverzicht-back-up.');
+    for(const k of ['strava','hevy','health','manual','daily']) if(j[k]) S[k] = j[k];
+    await save(...KEYS); render(); msg('mBackup', '✓ Back-up teruggezet.');
+  }catch(e){ msg('mBackup', 'Mislukt: ' + e.message, true); }
+}
+
+/* ---------- start ---------- */
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+(async () => {
+  try{ TAB = localStorage.getItem('sport_tab') || 'home'; }catch(_){}
+  if(!TABS.some(t => t[0] === TAB)) TAB = 'home';
+  await loadAll();
+  render();
+  await stravaCallback();
+})();
+</script>
+</body>
+</html>
