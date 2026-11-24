@@ -114,7 +114,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script>
 "use strict";
 addEventListener('error', e => { const el = document.getElementById('toast'); if(el){ el.textContent = 'Fout: ' + e.message; el.hidden = false; } });
-const VERSIE = '1.6';
+const VERSIE = '1.7';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -354,7 +354,7 @@ document.addEventListener('scroll', hideTip, {passive:true});
 
 /* ---------- weergave ---------- */
 const TABS = [['home','🏠','Overzicht'],['train','📅','Trainingen'],['kracht','🏋️','Kracht'],['lichaam','❤️','Lichaam'],['koppel','🔗','Koppelen']];
-let TAB = 'home', FILTER = 'alles', EXQ = '';
+let TAB = 'home', FILTER = 'alles', EXQ = '', EXSEL = '', PERSIST = null;
 function nav(){
   $('#nav').innerHTML = TABS.map(([id, ic, l]) => `<button data-tab="${id}" ${TAB===id?'aria-current="page"':''}><span>${ic}</span>${l}</button>`).join('');
 }
@@ -474,6 +474,7 @@ function vHome(){
   const s2 = streaks(days);
   const unit = PER === 'jaar' ? 'uren per maand' : 'minuten per dag';
   return `<h1>Sportoverzicht</h1>
+  ${backupBanner()}
   ${perNav()}
   <div class="card"><div class="small muted">Trainingsdagen</div><div class="hero">${n0(cur.days)}<span style="font-size:22px;color:var(--muted);font-weight:600"> / ${n0(nDays)}</span></div>
   <div class="small" style="color:var(--ink2);margin-top:6px">${esc(deltaTxt(cur.days, prev.days, n0, word))}</div></div>
@@ -493,6 +494,38 @@ function vHome(){
   ${OFF === 0 ? `<div class="card"><h2>Kalender · 26 weken</h2><div class="scroll-x">${heatmap(days)}</div><p class="small muted" style="margin:8px 0 0">Dagen op rij: ${s2.ds} · record ${s2.best} · ooit ${n0(days.size)} trainingsdagen</p></div>` : ''}`;
 }
 
+function fmtClock(s){ s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return (h ? h + ':' + pad(m) : m) + ':' + pad(x); }
+function recordsCard(acts){
+  const runs = acts.filter(a => a.type === 'lopen' && a.dist >= 500 && a.dur > 0 && a.dur/(a.dist/1000) >= 150 && a.dur/(a.dist/1000) <= 900);
+  const rides = acts.filter(a => a.type === 'fietsen' && a.dist >= 1000 && a.dur > 0 && a.dist/a.dur*3.6 <= 70);
+  if(!runs.length && !rides.length) return '';
+  const pace = a => a.dur / (a.dist/1000);
+  const pick = (arr, score) => arr.reduce((b, a) => !b || score(a) > score(b) ? a : b, null);
+  const when = a => `${esc(fmtDateY(a.start))} · ${esc(a.name || '')}`;
+  const row = (lbl, val, sub) => `<div class="act"><span class="ic">🏅</span><div class="main"><div class="nm">${lbl}: ${val}</div><div class="meta">${sub}</div></div></div>`;
+  const maxPer = (arr, keyFn, fmtK) => { const m = new Map(); for(const a of arr){ const k = keyFn(a.start); m.set(k, (m.get(k)||0) + a.dist); } let bk = null, bv = 0; for(const [k, v] of m) if(v > bv){ bk = k; bv = v; } return bk === null ? null : [bv, fmtK(bk)]; };
+  let html = '';
+  if(runs.length){
+    html += '<h3>🏃 Lopen</h3>';
+    for(const [lbl, lo, hi, km] of [['5 km', 4800, 5600, 5], ['10 km', 9700, 11000, 10], ['Halve marathon', 20800, 22500, 21.0975], ['Marathon', 41800, 44000, 42.195]]){
+      const c = runs.filter(a => a.dist >= lo && a.dist <= hi); if(!c.length) continue;
+      const b = pick(c, a => -pace(a));
+      html += row('Snelste ' + lbl, fmtClock(pace(b) * km), `${fmtClock(pace(b))} /km · ${when(b)}`);
+    }
+    const lr = pick(runs, a => a.dist); html += row('Langste loop', n1(lr.dist/1000) + ' km', `${fmtDur(lr.dur)} · ${when(lr)}`);
+    const fr = pick(runs.filter(a => a.dist >= 3000), a => -pace(a)); if(fr) html += row('Snelste tempo (≥ 3 km)', fmtClock(pace(fr)) + ' /km', `${n1(fr.dist/1000)} km · ${when(fr)}`);
+    const w = maxPer(runs, weekStart, k => 'week van ' + fmtDate(k, {day:'numeric', month:'short', year:'numeric'})); if(w) html += row('Meeste km in één week', n1(w[0]/1000) + ' km', esc(w[1]));
+    const mo = maxPer(runs, t => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), 1).getTime(); }, k => new Date(k).toLocaleDateString('nl-BE', {month:'long', year:'numeric'})); if(mo) html += row('Meeste km in één maand', n1(mo[0]/1000) + ' km', esc(mo[1]));
+  }
+  if(rides.length){
+    html += '<h3>🚴 Fietsen</h3>';
+    const lr = pick(rides, a => a.dist); html += row('Langste rit', n1(lr.dist/1000) + ' km', `${fmtDur(lr.dur)} · ${when(lr)}`);
+    const fr = pick(rides.filter(a => a.dist >= 20000), a => a.dist/a.dur); if(fr) html += row('Snelste gemiddelde (≥ 20 km)', n1(fr.dist/fr.dur*3.6) + ' km/u', `${n1(fr.dist/1000)} km · ${when(fr)}`);
+    const hm = pick(rides.filter(a => a.elev), a => a.elev); if(hm) html += row('Meeste hoogtemeters', n0(hm.elev) + ' hm', `${n1(hm.dist/1000)} km · ${when(hm)}`);
+    const w = maxPer(rides, weekStart, k => 'week van ' + fmtDate(k, {day:'numeric', month:'short', year:'numeric'})); if(w) html += row('Meeste km in één week', n1(w[0]/1000) + ' km', esc(w[1]));
+  }
+  return `<div class="card"><h2>Persoonlijke records</h2>${html}<p class="muted small" style="margin:8px 0 0">Op basis van volledige activiteiten: "snelste 5 km" is je snelste loop van ongeveer 5 km, omgerekend naar precies 5 km. Je snelste 5 km binnen een langere loop telt niet mee.</p></div>`;
+}
 function vTrain(){
   const {acts} = data();
   if(!acts.length) return `<h1>Trainingen</h1>` + emptyState();
@@ -508,6 +541,7 @@ function vTrain(){
   }
   if(month) html += '</div>';
   return `<h1>Trainingen</h1><p class="sub">${n0(acts.length)} trainingen uit ${[...new Set(acts.map(a => SRC[a.src]))].join(', ')}</p>
+  ${FILTER === 'alles' || FILTER === 'lopen' || FILTER === 'fietsen' ? recordsCard(FILTER === 'alles' ? acts : acts.filter(a => a.type === FILTER)) : ''}
   <div class="card scroll-x"><table><thead><tr><th>Sport</th><th class="n">Aantal</th><th class="n">Tijd</th><th class="n">Afstand</th></tr></thead><tbody>
   ${types.map(t => `<tr><td>${sp(t)[1]} ${sp(t)[0]}</td><td class="n">${n0(per[t].n)}</td><td class="n">${n0(per[t].s/3600)} u</td><td class="n">${per[t].m ? n0(per[t].m/1000)+' km' : '–'}</td></tr>`).join('')}
   </tbody></table></div>
@@ -536,6 +570,36 @@ function vKracht(){
     e.last = Math.max(e.last, a.start); e.first = Math.min(e.first, a.start);
   }
   const rows = Object.values(ex).filter(e => !EXQ || e.n.toLowerCase().includes(EXQ.toLowerCase())).sort((a,b) => b.sets - a.sets);
+  // progressie van één oefening
+  const all = Object.values(ex).sort((a,b) => b.sets - a.sets);
+  if(!ex[EXSEL]) EXSEL = all[0].n;
+  const pts = [];
+  for(const a of [...ses].reverse()) for(const x of a.ex){
+    if(x.n !== EXSEL) continue;
+    let best = null;
+    for(const st of x.sets){ if(st.t === 'warmup') continue;
+      const w = st.w||0, r = st.r||0;
+      const sc = w && r && r <= 12 ? w*(1 + r/30) : w ? w : r;
+      if(!best || sc > best.sc) best = {sc, w, r}; }
+    if(best && best.sc) pts.push({t:a.start, v:Math.round(best.sc*10)/10, best});
+  }
+  const weighted = pts.some(q => q.best.w);
+  const lp = pts.map(q => ({t:q.t, v:q.v, tip:`${fmtDateY(q.t)}\n${q.best.w ? `${n1(q.best.w)} kg × ${q.best.r}` : `${q.best.r} herhalingen`}${weighted && q.best.w && q.best.r <= 12 ? `\nGeschat 1RM: ${n1(q.v)} kg` : ''}`}));
+  let prog = '';
+  if(pts.length){
+    const first = pts[0], lastP = pts[pts.length-1], top = pts.reduce((m, q) => q.v > m.v ? q : m, pts[0]);
+    const pct = first.v ? (lastP.v - first.v) / first.v * 100 : 0, u = weighted ? ' kg' : ' reps';
+    prog = `<div class="card" id="progcard"><h2>Progressie <span class="muted small">(${weighted ? 'geschat 1RM' : 'herhalingen'})</span></h2>
+    <select id="exsel">${all.map(e => `<option ${e.n === EXSEL ? 'selected' : ''}>${esc(e.n)}</option>`).join('')}</select>
+    <div class="tiles" style="margin:4px 0 10px">
+      <div class="tile"><div class="lbl">Eerste keer</div><div class="val">${n1(first.v)}${u}</div><div class="delta">${esc(fmtDateY(first.t))}</div></div>
+      <div class="tile"><div class="lbl">Laatste keer</div><div class="val">${n1(lastP.v)}${u}</div><div class="delta">${pct ? (pct > 0 ? '▲ +' : '▼ −') + n0(Math.abs(pct)) + ' % sinds start' : esc(fmtDateY(lastP.t))}</div></div>
+      <div class="tile"><div class="lbl">Beste ooit</div><div class="val">${n1(top.v)}${u}</div><div class="delta">${esc(fmtDateY(top.t))}</div></div>
+      <div class="tile"><div class="lbl">Sessies</div><div class="val">${pts.length}</div><div class="delta">met deze oefening</div></div>
+    </div>
+    ${lineChart(lp, {title:'Progressie ' + EXSEL, fmt:n0, pad:0.15})}
+    <p class="muted small" style="margin:8px 0 0">${weighted ? 'Per sessie je beste set, omgerekend naar een geschat 1RM (Epley). Zo kun je sets met verschillende herhalingen vergelijken.' : 'Per sessie je hoogste aantal herhalingen.'} Tik op een rij in de tabel hieronder om een andere oefening te kiezen.</p></div>`;
+  }
   // volume per maand (12 maanden)
   const mdata = [], now = new Date();
   for(let i = 11; i >= 0; i--){
@@ -550,14 +614,17 @@ function vKracht(){
     <div class="tile"><div class="lbl">Totaal volume</div><div class="val">${n1(totVol/1000)} t</div><div class="delta">gewicht × herhalingen</div></div>
     <div class="tile"><div class="lbl">Oefeningen</div><div class="val">${n0(Object.keys(ex).length)}</div></div>
   </div>
+  ${prog}
   <div class="card"><h2>Volume per maand <span class="muted small">(ton)</span></h2>${barChart(mdata, {fmt:n1, title:'Volume per maand in ton'})}</div>
   <div class="card"><h2>Records per oefening</h2>
   <input type="search" id="exq" placeholder="Zoek oefening…" value="${esc(EXQ)}">
   <div class="scroll-x"><table><thead><tr><th>Oefening</th><th class="n">Zwaarst (kg)</th><th class="n">1RM (kg)</th><th class="n">Sets</th><th class="n">Laatst</th></tr></thead><tbody>
-  ${rows.slice(0, 150).map(e => `<tr><td>${esc(e.n)}</td><td class="n">${e.maxW ? n1(e.maxW)+'×'+e.maxWr : e.maxR ? e.maxR+' reps' : '–'}</td><td class="n">${e.e1 ? n0(e.e1) : '–'}</td><td class="n">${n0(e.sets)}</td><td class="n">${esc(fmtDate(e.last, {day:'numeric', month:'numeric', year:'2-digit'}))}</td></tr>`).join('')}
+  ${rows.slice(0, 150).map(e => `<tr data-ex="${esc(e.n)}" style="cursor:pointer${e.n === EXSEL ? ';background:var(--chip)' : ''}"><td>${esc(e.n)}</td><td class="n">${e.maxW ? n1(e.maxW)+'×'+e.maxWr : e.maxR ? e.maxR+' reps' : '–'}</td><td class="n">${e.e1 ? n0(e.e1) : '–'}</td><td class="n">${n0(e.sets)}</td><td class="n">${esc(fmtDate(e.last, {day:'numeric', month:'numeric', year:'2-digit'}))}</td></tr>`).join('')}
   </tbody></table></div><p class="muted small">Geschat 1RM = Epley-formule op sets van max. 12 herhalingen. Opwarmsets tellen niet mee.</p></div>
   <div class="card"><h2>Recente sessies</h2>${ses.slice(0, 15).map((a, i) => actRow(a, i === 0)).join('')}</div>`;
 }
+document.addEventListener('change', e => { if(e.target.id === 'exsel'){ EXSEL = e.target.value; render(); } });
+document.addEventListener('click', e => { const tr = e.target.closest('tr[data-ex]'); if(tr){ EXSEL = tr.dataset.ex; render(); const c = $('#progcard'); if(c) c.scrollIntoView({behavior:'smooth', block:'start'}); } });
 document.addEventListener('input', e => { if(e.target.id === 'exq'){ EXQ = e.target.value; const pos = e.target.selectionStart; render(); const i = $('#exq'); i.focus(); i.setSelectionRange(pos, pos); } });
 
 function vLichaam(){
@@ -695,7 +762,9 @@ function vKoppel(){
   ${S.manual.length ? `<p class="small muted">${S.manual.length} zelf toegevoegd. <a href="#" id="undoManual">Laatste verwijderen</a></p>` : ''}</div>
 
   <div class="card"><h2>💾 Back-up</h2>
-  <p class="small">Je gegevens staan alleen in deze browser. Maak af en toe een back-up, of zet ze zo over naar een ander toestel.</p>
+  <p class="small">Je gegevens staan alleen in deze browser. Maak af en toe een back-up, of zet ze zo over naar een ander toestel.<br>
+  Laatste back-up: <b>${c.backupAt ? esc(fmtDateY(c.backupAt)) : 'nog nooit'}</b><br>
+  Beschermd tegen automatisch wissen: ${PERSIST === true ? '<span class="ok">✓ ja</span>' : PERSIST === false ? '<b>nee</b>: open de app minstens wekelijks en maak back-ups' : 'onbekend'}</p>
   <button class="btn ghost" id="bExport">Back-up downloaden</button><label class="btn ghost">Back-up terugzetten<input type="file" id="fBackup" accept=".json,application/json" hidden></label>
   <button class="btn danger" id="bWipe">Alles wissen</button><div class="msg" id="mBackup"></div></div>
   <p class="muted small" style="text-align:center">Sportoverzicht v${VERSIE}</p>`;
@@ -1163,7 +1232,21 @@ function exportBackup(){
   const blob = new Blob([JSON.stringify({app:'sportoverzicht', v:1, at:Date.now(), ...S, cfg})], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'sportoverzicht-' + dk(Date.now()) + '.json'; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  msg('mBackup', 'Back-up gemaakt (zonder wachtwoorden/sleutels).');
+  S.cfg.backupAt = Date.now(); save('cfg').then(() => { render(); msg('mBackup', '✓ Back-up gemaakt (zonder wachtwoorden/sleutels). Bewaar het bestand in iCloud Drive of Bestanden.'); });
+}
+document.addEventListener('click', e => { if(e.target.closest('#bBackupNow')) exportBackup(); });
+async function askPersist(){
+  try{
+    if(!navigator.storage || !navigator.storage.persist) return;
+    PERSIST = await navigator.storage.persisted();
+    if(!PERSIST) PERSIST = await navigator.storage.persist();
+  }catch(_){}
+}
+function backupBanner(){
+  const has = S.strava.length || S.hevy.length || S.health.length || S.manual.length || Object.keys(S.daily).length;
+  const b = S.cfg.backupAt;
+  if(!has || (b && Date.now() - b < 14*DAY)) return '';
+  return `<div class="card" style="border-color:var(--s1)"><b>💾 ${b ? 'Je laatste back-up is van ' + esc(fmtDateY(b)) : 'Je hebt nog geen back-up'}</b><p class="small" style="margin:4px 0 8px;color:var(--ink2)">Je gegevens staan alleen in Safari op deze gsm. Met een back-up ben je niets kwijt als Safari ze ooit wist.</p><button class="btn" id="bBackupNow">Back-up nu</button></div>`;
 }
 async function importBackup(file){
   try{
@@ -1238,6 +1321,7 @@ let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(ren
   try{ TAB = localStorage.getItem('sport_tab') || 'home'; }catch(_){}
   if(!TABS.some(t => t[0] === TAB)) TAB = 'home';
   await loadAll();
+  await askPersist();
   if(location.hash.startsWith('#sync')){ await healthShortcut(); TAB = 'home'; }
   render();
   await stravaCallback();
