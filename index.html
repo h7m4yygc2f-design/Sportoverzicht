@@ -111,7 +111,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 <script>
 "use strict";
-const VERSIE = '1.3';
+const VERSIE = '1.4';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -138,8 +138,19 @@ function idb(){ return dbp ||= new Promise((res, rej) => { const r = indexedDB.o
 async function dbGet(k){ try{ const db = await idb(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }catch(e){ return undefined; } }
 async function dbSet(k, v){ try{ const db = await idb(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }catch(e){ console.warn('Opslaan mislukt', e); } }
 
-const S = { strava:[], hevy:[], health:[], manual:[], daily:{}, cfg:{} };
-const KEYS = ['strava','hevy','health','manual','daily','cfg'];
+const S = { strava:[], hevy:[], health:[], manual:[], daily:{}, mfp:{}, cfg:{} };
+const KEYS = ['strava','hevy','health','manual','daily','mfp','cfg'];
+/* Gezondheid + MyFitnessPal-export samen; MFP-export wint voor voeding */
+function dailyMerged(){
+  const D = {};
+  for(const [k, v] of Object.entries(S.daily)) D[k] = {...v};
+  for(const [k, v] of Object.entries(S.mfp || {})){
+    const d = D[k] || (D[k] = {});
+    for(const f of ['eaten','protein','carbs','fat']) if(v[f]) d[f] = v[f];
+    if(v.weight && !d.weight) d.weight = v.weight;
+  }
+  return D;
+}
 async function loadAll(){ for(const k of KEYS){ const v = await dbGet(k); if(v !== undefined) S[k] = v; } }
 async function save(...ks){ CACHE = null; for(const k of ks) await dbSet(k, S[k]); }
 
@@ -471,8 +482,8 @@ function vKracht(){
 document.addEventListener('input', e => { if(e.target.id === 'exq'){ EXQ = e.target.value; const pos = e.target.selectionStart; render(); const i = $('#exq'); i.focus(); i.setSelectionRange(pos, pos); } });
 
 function vLichaam(){
-  const D = S.daily, keys = Object.keys(D).sort();
-  if(!keys.length) return `<h1>Lichaam</h1><p class="sub">Stappen, slaap, gewicht, voeding</p><div class="card empty"><div class="big">❤️</div><p>Deze gegevens komen uit Apple Gezondheid (ook MyFitnessPal, Technogym en je weegschaal komen daar binnen).</p><button class="btn" onclick="TAB='koppel';render()">Gezondheid importeren</button></div>`;
+  const D = dailyMerged(), keys = Object.keys(D).sort();
+  if(!keys.length) return `<h1>Lichaam</h1><p class="sub">Stappen, slaap, gewicht, voeding</p><div class="card empty"><div class="big">❤️</div><p>Deze gegevens komen uit Apple Gezondheid of je MyFitnessPal-export.</p><button class="btn" onclick="TAB='koppel';render()">Naar Koppelen</button></div>`;
   const lastK = keys[keys.length-1], lastMs = keyToMs(lastK);
   const avg = (f, n) => { let s = 0, c = 0; for(let i = 0; i < n; i++){ const d = D[dk(lastMs - i*DAY)]; if(d && d[f]){ s += d[f]; c++; } } return c ? s/c : 0; };
   const wpts = keys.filter(k => D[k].weight).map(k => ({t:keyToMs(k), v:D[k].weight, tip:`${fmtDateY(keyToMs(k))}\n${n1(D[k].weight)} kg`}));
@@ -483,8 +494,13 @@ function vLichaam(){
   for(let i = 13; i >= 0; i--){ const t = lastMs - i*DAY, d = D[dk(t)] || {};
     sleep.push({v:Math.round((d.sleep||0)/6)/10, label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`Nacht naar ${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${d.sleep ? fmtDur(d.sleep*60) : 'geen slaapdata'}`}); }
   for(const k of keys){ const d = D[k]; if(!d.active && d.ring && d.ring.move) d.active = d.ring.move; }
-  const eat = avg('eaten', 7), prot = avg('protein', 7), act = avg('active', 7);
-  return `<h1>Lichaam</h1><p class="sub">Uit Apple Gezondheid · tot ${esc(fmtDateY(lastMs))}</p>
+  const eat = avg('eaten', 7), prot = avg('protein', 7), act = avg('active', 7), carbs = avg('carbs', 7), fat = avg('fat', 7);
+  // voeding: 30 dagen tot de laatste dag met voeding
+  const fk = keys.filter(k => D[k].eaten), fLast = fk.length ? keyToMs(fk[fk.length-1]) : 0, food = [];
+  if(fLast) for(let i = 29; i >= 0; i--){ const t = fLast - i*DAY, d = D[dk(t)] || {};
+    food.push({v:Math.round(d.eaten||0), label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${d.eaten ? n0(d.eaten)+' kcal' : 'niets gelogd'}${d.protein ? '\nEiwit '+n0(d.protein)+' g' : ''}${d.carbs ? ' · koolh. '+n0(d.carbs)+' g' : ''}${d.fat ? ' · vet '+n0(d.fat)+' g' : ''}`}); }
+  const foodCard = fLast ? `<div class="card"><h2>Gegeten · 30 dagen <span class="muted small">(kcal)</span></h2>${carbs || fat ? `<p class="small" style="margin:0 0 8px;color:var(--ink2)">Gemiddeld 7 dagen: eiwit ${n0(prot)} g · koolhydraten ${n0(carbs)} g · vet ${n0(fat)} g</p>` : ''}${barChart(food, {title:'Gegeten kcal per dag'})}</div>` : '';
+  return `<h1>Lichaam</h1><p class="sub">Uit Apple Gezondheid${Object.keys(S.mfp||{}).length ? ' en MyFitnessPal' : ''} · tot ${esc(fmtDateY(lastMs))}</p>
   <div class="tiles">
     <div class="tile"><div class="lbl">Gewicht</div><div class="val">${wl ? n1(wl.v)+' kg' : '–'}</div><div class="delta">${wl && w30 ? (wl.v - w30.v >= 0 ? '+' : '')+n1(wl.v - w30.v)+' kg in 30 dagen' : wl ? esc(fmtDateY(wl.t)) : 'geen metingen'}</div></div>
     <div class="tile"><div class="lbl">Stappen / dag</div><div class="val">${n0(avg('steps', 7))}</div><div class="delta">gem. 7 dagen · 30 d: ${n0(avg('steps', 30))}</div></div>
@@ -495,9 +511,10 @@ function vLichaam(){
     <div class="tile"><div class="lbl">Actief verbrand</div><div class="val">${act ? n0(act) : '–'}</div><div class="delta">kcal / dag (7 d)</div></div>
     <div class="tile"><div class="lbl">Dagen met data</div><div class="val">${n0(keys.length)}</div><div class="delta">sinds ${esc(fmtDateY(keyToMs(keys[0])))}</div></div>
   </div>
-  <div class="card"><h2>Gewicht <span class="muted small">(kg)</span></h2>${lineChart(wpts.slice(-400), {title:'Gewicht'})}</div>
-  <div class="card"><h2>Stappen · 30 dagen</h2>${barChart(steps, {title:'Stappen per dag'})}</div>
-  <div class="card"><h2>Slaap · 14 nachten <span class="muted small">(uren)</span></h2>${barChart(sleep, {fmt:n1, title:'Uren slaap per nacht', h:150})}</div>`;
+  ${foodCard}
+  ${wpts.length > 1 ? `<div class="card"><h2>Gewicht <span class="muted small">(kg)</span></h2>${lineChart(wpts.slice(-400), {title:'Gewicht'})}</div>` : ''}
+  ${steps.some(x => x.v) ? `<div class="card"><h2>Stappen · 30 dagen</h2>${barChart(steps, {title:'Stappen per dag'})}</div>` : ''}
+  ${sleep.some(x => x.v) ? `<div class="card"><h2>Slaap · 14 nachten <span class="muted small">(uren)</span></h2>${barChart(sleep, {fmt:n1, title:'Uren slaap per nacht', h:150})}</div>` : ''}`;
 }
 
 /* ---------- koppelen ---------- */
@@ -534,6 +551,12 @@ function vKoppel(){
   <div class="msg" id="mStrava"></div>
   <p class="muted small">Runna en Komoot: zet in die apps de koppeling met Strava aan, dan komen je runs en tochten ook in je Strava-archief.</p></div>
 
+  <div class="card"><h2>🔵 MyFitnessPal</h2>
+  <p class="small">${Object.keys(S.mfp||{}).length ? `<span class="ok">✓ ${n0(Object.keys(S.mfp).length)} dagen voeding</span> · ${last(c.mfpAt)}` : 'Je voeding per dag: kcal, eiwitten, koolhydraten en vet (MyFitnessPal Premium).'}</p>
+  <ol class="steps small"><li>Ga in Safari of op je pc naar <b>myfitnesspal.com</b> en log in.</li><li>Zoek bij je instellingen of rapporten naar <b>Gegevens exporteren</b> (<i>Export Data</i>) en kies een periode.</li><li>Je krijgt een mail met een zip. Bewaar die in Bestanden (of op je pc).</li><li>Kies hier de zip, of het bestand <b>Nutrition-Summary…csv</b> eruit.</li></ol>
+  <label class="btn">📂 Kies MyFitnessPal-export<input type="file" id="fMfp" accept=".zip,.csv,application/zip,text/csv" multiple hidden></label>
+  <div class="msg" id="mMfp"></div></div>
+
   <div class="card"><h2>⚫ Hevy</h2>
   <p class="small">${S.hevy.length ? `<span class="ok">✓ ${n0(S.hevy.length)} workouts</span> · ${last(c.hevyAt)}` : 'Je oude krachttrainingen met alle oefeningen, sets en gewichten.'}</p>
   <h3>Optie 1: CSV-export (werkt altijd)</h3>
@@ -565,6 +588,7 @@ function bindKoppel(){
   const on = (id, ev, fn) => { const el = $('#'+id); if(el) el.addEventListener(ev, fn); };
   on('fHealth', 'change', e => e.target.files[0] && importHealth(e.target.files[0]));
   on('fHevy', 'change', e => e.target.files[0] && importHevyCSV(e.target.files[0]));
+  on('fMfp', 'change', e => e.target.files.length && importMfp([...e.target.files]));
   on('bHevy', 'click', hevyApi);
   on('fStrava', 'change', e => e.target.files[0] && importStravaArchive(e.target.files[0]));
   on('bStravaConnect', 'click', stravaConnect);
@@ -575,7 +599,7 @@ function bindKoppel(){
   on('undoManual', 'click', async e => { e.preventDefault(); S.manual.pop(); await save('manual'); render(); });
   on('bExport', 'click', exportBackup);
   on('fBackup', 'change', e => e.target.files[0] && importBackup(e.target.files[0]));
-  on('bWipe', 'click', async () => { if(!confirm('Echt alles wissen op dit toestel?')) return; S.strava = []; S.hevy = []; S.health = []; S.manual = []; S.daily = {}; S.cfg = {}; await save(...KEYS); render(); });
+  on('bWipe', 'click', async () => { if(!confirm('Echt alles wissen op dit toestel?')) return; S.strava = []; S.hevy = []; S.health = []; S.manual = []; S.daily = {}; S.mfp = {}; S.cfg = {}; await save(...KEYS); render(); });
 }
 
 /* ---------- Apple Gezondheid ---------- */
@@ -782,6 +806,58 @@ async function hevyApi(){
   }
 }
 
+/* ---------- MyFitnessPal-export ---------- */
+function parseAnyDate(s){
+  s = (s||'').trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if(m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/);
+  if(m){ let a = +m[1], b = +m[2]; const slash = s.includes('/'); let d, mo;
+    if(a > 12){ d = a; mo = b; } else if(b > 12){ d = b; mo = a; } else if(slash){ mo = a; d = b; } else { d = a; mo = b; }
+    return `${m[3]}-${pad(mo)}-${pad(d)}`; }
+  const t = parseHevyDate(s); return t ? dk(t) : null;
+}
+async function unzipCsvs(file){
+  const z = fflate.unzipSync(new Uint8Array(await file.arrayBuffer()), {filter: f => /\.csv$/i.test(f.name) && !/__MACOSX/.test(f.name)});
+  return Object.entries(z).map(([name, u8]) => ({name, text:new TextDecoder().decode(u8)}));
+}
+async function importMfp(files){
+  try{
+    msg('mMfp', 'Bezig met lezen…');
+    let csvs = [];
+    for(const f of files){
+      if(/\.zip$/i.test(f.name) || f.type.includes('zip')){ if(!window.fflate) throw new Error('Het zip-onderdeel kon niet laden. Pak de zip uit en kies de .csv.'); csvs.push(...await unzipCsvs(f)); }
+      else csvs.push({name:f.name, text:await f.text()});
+    }
+    const out = {}; let nutr = 0, meas = 0;
+    for(const {text} of csvs){
+      const rows = parseCSV(text.replace(/^﻿/, '')); if(rows.length < 2) continue;
+      const h = rows.shift().map(x => x.trim().toLowerCase());
+      const col = re => h.findIndex(c => re.test(c));
+      const iDate = col(/^(date|datum)$/);
+      if(iDate < 0) continue;
+      const iCal = col(/^(calories|calorie[eë]n|energie|energy)/), iP = col(/^(protein|eiwit)/), iC = col(/^(carbohydrates|koolhydraten)/), iF = col(/^(fat|vet)( \(g\))?$/), iW = col(/^(weight|gewicht)/);
+      const num = v => syncNum(v, false);
+      if(iCal >= 0){
+        nutr++;
+        for(const r of rows){ const k = parseAnyDate(r[iDate]); if(!k) continue;
+          const d = out[k] || (out[k] = {});
+          if(!d._n){ d._n = 1; d.eaten = 0; d.protein = 0; d.carbs = 0; d.fat = 0; }
+          d.eaten += num(r[iCal]); if(iP >= 0) d.protein += num(r[iP]); if(iC >= 0) d.carbs += num(r[iC]); if(iF >= 0) d.fat += num(r[iF]); }
+      } else if(iW >= 0){
+        meas++;
+        for(const r of rows){ const k = parseAnyDate(r[iDate]); const w = num(r[iW]); if(!k || !w) continue; (out[k] || (out[k] = {})).weight = w > 140 && /lb/.test(h[iW]) ? w*0.45359 : w; }
+      }
+    }
+    const days = Object.keys(out);
+    if(!days.length) throw new Error('Geen voeding of gewicht gevonden. Kies de MyFitnessPal-export (zip) of het Nutrition-Summary-bestand.');
+    S.mfp = S.mfp || {};
+    for(const k of days){ const v = out[k]; delete v._n; for(const f of Object.keys(v)) v[f] = Math.round(v[f]*10)/10; S.mfp[k] = {...(S.mfp[k] || {}), ...v}; }
+    S.cfg.mfpAt = Date.now();
+    await save('mfp', 'cfg'); render();
+    msg('mMfp', `✓ ${n0(days.length)} dagen geïmporteerd${nutr ? '' : ' (alleen gewicht, geen voeding gevonden)'}.`);
+  }catch(e){ console.error(e); msg('mMfp', 'Mislukt: ' + (e.message || e), true); }
+}
+
 /* ---------- Strava-archief ---------- */
 function parseStravaDate(s){
   s = (s||'').trim(); if(!s) return null;
@@ -960,7 +1036,7 @@ async function importBackup(file){
   try{
     const j = JSON.parse(await file.text());
     if(j.app !== 'sportoverzicht') throw new Error('Geen Sportoverzicht-back-up.');
-    for(const k of ['strava','hevy','health','manual','daily']) if(j[k]) S[k] = j[k];
+    for(const k of ['strava','hevy','health','manual','daily','mfp']) if(j[k]) S[k] = j[k];
     await save(...KEYS); render(); msg('mBackup', '✓ Back-up teruggezet.');
   }catch(e){ msg('mBackup', 'Mislukt: ' + e.message, true); }
 }
