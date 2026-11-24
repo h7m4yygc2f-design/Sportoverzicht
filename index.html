@@ -109,7 +109,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 <script>
 "use strict";
-const VERSIE = '1.0';
+const VERSIE = '1.1';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -513,14 +513,22 @@ function vKoppel(){
   <div class="prog" id="pHealth" hidden><i></i></div><div class="msg" id="mHealth"></div></div>
 
   <div class="card"><h2>🟧 Strava</h2>
-  ${sv.refresh ? `<p class="small"><span class="ok">✓ Verbonden</span>${sv.name ? ' als '+esc(sv.name) : ''} · ${n0(S.strava.length)} activiteiten<br>${last(c.stravaAt)}</p>
+  <p class="small">${S.strava.length ? `<span class="ok">✓ ${n0(S.strava.length)} activiteiten</span>${sv.name ? ' · '+esc(sv.name) : ''} · ${last(c.stravaAt)}` : 'Al je runs, ritten en wandelingen van Strava.'}</p>
+  <h3>Optie 1: Strava-archief (gratis, al je geschiedenis)</h3>
+  <ol class="steps small"><li>Ga in Safari naar <b>strava.com/athlete/delete_your_account</b> en log in. Geen schrik: je verwijdert niets.</li><li>Bij stap 2 tik je op <b>Archief aanvragen</b> (<i>Request your archive</i>).</li><li>Strava mailt je een downloadlink. Dat kan van enkele minuten tot een paar uur duren.</li><li>Download de zip, bewaar hem in Bestanden en kies hem hier.</li></ol>
+  <label class="btn">📂 Kies Strava-archief<input type="file" id="fStrava" accept=".zip,.csv,application/zip,text/csv" hidden></label>
+  <div class="prog" id="pStrava" hidden><i></i></div>
+  <h3>Optie 2: nieuwe activiteiten via Gezondheid</h3>
+  <p class="small">Strava-app → <b>Jij</b> → ⚙️ <b>Instellingen</b> → <b>Applicaties, services en apparaten</b> → <b>Gezondheid</b> → aanzetten. Nieuwe activiteiten zitten dan in je Gezondheid-export.</p>
+  <details><summary class="small"><b>Optie 3: rechtstreekse koppeling</b> (alleen met een Strava-abonnement)</summary>
+  ${sv.refresh ? `<p class="small"><span class="ok">✓ Verbonden</span></p>
     <button class="btn" id="bStrava">🔄 Bijwerken</button><button class="btn ghost" id="bStravaFull">Alles opnieuw ophalen</button><button class="btn danger" id="bStravaOff">Ontkoppelen</button>`
-  : `<p class="small">Strava laat geen gewone app-login toe zonder eigen "API-app". Die maak je één keer gratis aan (2 minuten):</p>
-    <ol class="steps small"><li>Ga op je pc of gsm naar <b>strava.com/settings/api</b> en log in.</li><li>Vul in: naam <i>Sportoverzicht</i>, categorie <i>Visualizer</i>, website <i>${esc(location.origin)}</i>.</li><li>Bij <b>Authorization Callback Domain</b>: <code>${esc(location.hostname)}</code></li><li>Kopieer de <b>Client ID</b> en het <b>Client Secret</b> hieronder.</li></ol>
+  : `<ol class="steps small"><li>Ga naar <b>strava.com/settings/api</b>.</li><li>Vul in: naam <i>Sportoverzicht</i>, categorie <i>Visualizer</i>, website <i>${esc(location.origin)}</i>.</li><li>Bij <b>Authorisatie van callbackdomein</b>: <code>${esc(location.hostname)}</code></li><li>Kopieer de <b>Client ID</b> en het <b>Client Secret</b> hieronder.</li></ol>
     <div class="row"><div><label class="small">Client ID<input type="text" id="sId" inputmode="numeric" value="${esc(sv.id||'')}"></label></div><div><label class="small">Client Secret<input type="password" id="sSecret" value="${esc(sv.secret||'')}"></label></div></div>
     <button class="btn" id="bStravaConnect">Verbind met Strava</button>`}
+  </details>
   <div class="msg" id="mStrava"></div>
-  <p class="muted small">Runna en Komoot: zet in die apps de koppeling met Strava aan, dan komen je runs en tochten hier ook binnen.</p></div>
+  <p class="muted small">Runna en Komoot: zet in die apps de koppeling met Strava aan, dan komen je runs en tochten ook in je Strava-archief.</p></div>
 
   <div class="card"><h2>⚫ Hevy</h2>
   <p class="small">${S.hevy.length ? `<span class="ok">✓ ${n0(S.hevy.length)} workouts</span> · ${last(c.hevyAt)}` : 'Je oude krachttrainingen met alle oefeningen, sets en gewichten.'}</p>
@@ -554,10 +562,11 @@ function bindKoppel(){
   on('fHealth', 'change', e => e.target.files[0] && importHealth(e.target.files[0]));
   on('fHevy', 'change', e => e.target.files[0] && importHevyCSV(e.target.files[0]));
   on('bHevy', 'click', hevyApi);
+  on('fStrava', 'change', e => e.target.files[0] && importStravaArchive(e.target.files[0]));
   on('bStravaConnect', 'click', stravaConnect);
   on('bStrava', 'click', () => stravaSync(false));
   on('bStravaFull', 'click', () => stravaSync(true));
-  on('bStravaOff', 'click', async () => { if(!confirm('Strava ontkoppelen en Strava-activiteiten verwijderen?')) return; S.strava = []; delete S.cfg.strava; await save('strava', 'cfg'); render(); });
+  on('bStravaOff', 'click', async () => { if(!confirm('Strava ontkoppelen?')) return; delete S.cfg.strava; await save('strava', 'cfg'); render(); });
   on('bManual', 'click', addManual);
   on('undoManual', 'click', async e => { e.preventDefault(); S.manual.pop(); await save('manual'); render(); });
   on('bExport', 'click', exportBackup);
@@ -767,6 +776,97 @@ async function hevyApi(){
     console.error(e);
     msg('mHevy', 'Mislukt: ' + (e.message === 'Failed to fetch' || e.name === 'TypeError' ? 'Hevy laat geen verbinding toe vanuit een browser. Gebruik optie 1 (CSV-export).' : e.message), true);
   }
+}
+
+/* ---------- Strava-archief ---------- */
+function parseStravaDate(s){
+  s = (s||'').trim(); if(!s) return null;
+  if(/^\d{4}-\d\d-\d\d/.test(s)){ const t = Date.parse(s.replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(s.slice(10)) ? '' : 'Z')); if(!isNaN(t)) return t; }
+  const T = '(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*([AaPp]\\.?[Mm]\\.?)?';
+  let m = s.match(new RegExp('([A-Za-zéû.]+)\\s+(\\d{1,2}),?\\s+(\\d{4}),?\\s+' + T)), y, mo, d, H, M, X, ap;
+  if(m){ mo = MONTHS[m[1].toLowerCase().slice(0,3)]; d = +m[2]; y = +m[3]; H = +m[4]; M = +m[5]; X = +(m[6]||0); ap = m[7]; }
+  else {
+    m = s.match(new RegExp('(\\d{1,2})\\.?\\s+([A-Za-zéû.]+)\\s+(\\d{4}),?\\s+' + T));
+    if(!m){ const t = Date.parse(s); return isNaN(t) ? null : t; }
+    d = +m[1]; mo = MONTHS[m[2].toLowerCase().slice(0,3)]; y = +m[3]; H = +m[4]; M = +m[5]; X = +(m[6]||0); ap = m[7];
+  }
+  if(mo === undefined) return null;
+  if(ap){ ap = ap[0].toLowerCase(); if(ap === 'p' && H < 12) H += 12; if(ap === 'a' && H === 12) H = 0; }
+  return Date.UTC(y, mo, d, H, M, X); // Strava-archief staat in UTC
+}
+function normStravaAny(t){
+  const e = normStrava((t||'').replace(/\s+/g, ''));
+  if(e !== 'overig') return e;
+  t = (t||'').toLowerCase();
+  if(/wandeltocht|hike|berg/.test(t)) return 'hiken';
+  if(/hardloop|loop/.test(t)) return 'lopen';
+  if(/rit|fiets|wielren|mountainbike|gravel/.test(t)) return 'fietsen';
+  if(/wandel/.test(t)) return 'wandelen';
+  if(/kracht|gewicht|crossfit/.test(t)) return 'kracht';
+  if(/zwem/.test(t)) return 'zwemmen';
+  if(/voetbal/.test(t)) return 'voetbal';
+  if(/roei/.test(t)) return 'roeien';
+  if(/yoga|pilates/.test(t)) return 'yoga';
+  if(/hiit|interval/.test(t)) return 'hiit';
+  if(/crosstrainer|elliptical|stepper/.test(t)) return 'cardio';
+  return 'overig';
+}
+function concatU8(chunks){ let n = 0; for(const c of chunks) n += c.length; const o = new Uint8Array(n); let p = 0; for(const c of chunks){ o.set(c, p); p += c.length; } return o; }
+async function importStravaArchive(file){
+  const bar = $('#pStrava'), fill = bar.firstElementChild;
+  try{
+    msg('mStrava', 'Bezig met lezen…');
+    let text;
+    if(/\.zip$/i.test(file.name) || file.type.includes('zip')){
+      if(!window.fflate) throw new Error('Het zip-onderdeel kon niet laden (geen internet?). Open de zip in Bestanden en kies activities.csv.');
+      bar.hidden = false;
+      text = await new Promise((res, rej) => {
+        const uz = new fflate.Unzip(); uz.register(fflate.UnzipInflate);
+        const chunks = []; let found = false, done = false;
+        uz.onfile = f => {
+          if(!found && /(^|\/)activities\.csv$/i.test(f.name)){
+            found = true;
+            f.ondata = (err, d, fin) => { if(err) return rej(err); chunks.push(d); if(fin){ done = true; res(new TextDecoder().decode(concatU8(chunks))); } };
+            f.start();
+          }
+        };
+        (async () => {
+          const r = file.stream().getReader(); let read = 0, ui = 0;
+          for(;;){
+            const {done:dn, value} = await r.read();
+            if(dn){ uz.push(new Uint8Array(0), true); break; }
+            read += value.length; uz.push(value);
+            if(done){ r.cancel().catch(() => {}); return; }
+            if(Date.now() - ui > 250){ ui = Date.now(); fill.style.width = (100*read/file.size).toFixed(1) + '%'; msg('mStrava', `Zoeken in archief… ${n0(read/1048576)} / ${n0(file.size/1048576)} MB`); await new Promise(z => setTimeout(z)); }
+          }
+          if(!found) rej(new Error('Geen activities.csv gevonden in deze zip. Is dit je Strava-archief?'));
+        })().catch(rej);
+      });
+    } else text = await file.text();
+    const rows = parseCSV(text.replace(/^﻿/, ''));
+    const h = rows.shift().map(x => x.trim().toLowerCase());
+    const idx = (names, lastOne) => { let r = -1; h.forEach((c, i) => { if(names.includes(c) && (r < 0 || lastOne)) r = i; }); return r; };
+    const or = (i, f) => i >= 0 ? i : f;
+    const iId = or(idx(['activity id','activiteit-id','activiteits-id','activiteit id']), 0), iDate = or(idx(['activity date','activiteitsdatum','datum activiteit','activiteitdatum']), 1),
+          iName = or(idx(['activity name','activiteitsnaam','naam activiteit','activiteitnaam']), 2), iType = or(idx(['activity type','activiteitstype','type activiteit','activiteittype']), 3),
+          iEl = or(idx(['elapsed time','verstreken tijd']), 5), iKm = or(idx(['distance','afstand']), 6), iM = idx(['distance','afstand'], true),
+          iMov = idx(['moving time','bewegingstijd','tijd in beweging'], true), iElev = idx(['elevation gain','hoogtemeters','stijging']), iHr = idx(['average heart rate','gemiddelde hartslag']), iCal = idx(['calories','calorieën']);
+    const num = v => { v = String(v ?? '').trim(); if(!v) return 0; if(/^\d+,\d+$/.test(v)) v = v.replace(',', '.'); const x = parseFloat(v.replace(/[^\d.\-]/g, '')); return isNaN(x) ? 0 : x; };
+    const out = [];
+    for(const r of rows){
+      const id = (r[iId]||'').trim(), start = parseStravaDate(r[iDate]);
+      if(!id || !start) continue;
+      const dist = iM >= 0 && iM !== iKm && num(r[iM]) ? num(r[iM]) : num(r[iKm]) * 1000;
+      out.push({id:'strava-'+id, src:'strava', type:normStravaAny(r[iType]), name:r[iName] || r[iType] || 'Activiteit', start,
+        dur:Math.round(num(r[iMov]) || num(r[iEl])), dist:Math.round(dist), elev:iElev >= 0 ? Math.round(num(r[iElev])) : 0,
+        hr:iHr >= 0 ? Math.round(num(r[iHr])) : 0, kcal:iCal >= 0 ? Math.round(num(r[iCal])) : 0});
+    }
+    if(!out.length) throw new Error('Geen activiteiten gevonden. Kies het Strava-archief (zip) of activities.csv.');
+    const byId = new Map(S.strava.map(a => [a.id, a])); for(const a of out) byId.set(a.id, a);
+    S.strava = [...byId.values()]; S.cfg.stravaAt = Date.now();
+    await save('strava', 'cfg'); render();
+    msg('mStrava', `✓ ${n0(out.length)} activiteiten uit je Strava-archief geïmporteerd.`);
+  }catch(e){ console.error(e); bar.hidden = true; msg('mStrava', 'Mislukt: ' + (e.message || e), true); }
 }
 
 /* ---------- Strava ---------- */
