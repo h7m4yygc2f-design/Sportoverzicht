@@ -89,6 +89,7 @@ td.n,th.n{text-align:right;white-space:nowrap}
 .legend{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);margin-top:6px}
 .legend i{width:11px;height:11px;border-radius:2px;display:inline-block}
 svg text{font-family:inherit}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 74px);transform:translateX(-50%);z-index:30;background:var(--ink);color:var(--page);font-size:14px;padding:9px 14px;border-radius:12px;max-width:calc(100% - 32px);box-shadow:0 4px 16px rgba(0,0,0,.25)}
 #tip{position:fixed;left:0;top:0;z-index:20;pointer-events:none;background:var(--ink);color:var(--page);font-size:13px;padding:7px 10px;border-radius:8px;white-space:pre-line;max-width:240px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
 .prog{height:6px;border-radius:3px;background:var(--h0);overflow:hidden;margin:8px 0}
 .prog i{display:block;height:100%;width:0;background:var(--s1);transition:width .2s}
@@ -105,11 +106,12 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <div id="app"></div>
 <nav id="nav"></nav>
 <div id="tip" hidden></div>
+<div id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 <script>
 "use strict";
-const VERSIE = '1.2';
+const VERSIE = '1.3';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -384,7 +386,7 @@ function vHome(){
   if(ringKeys.length){
     const k = ringKeys[ringKeys.length-1], r = S.daily[k].ring;
     const m = (l, v, g, u) => `<div class="meter"><div class="small"><b>${l}</b> ${n0(v)}${g ? ' / '+n0(g) : ''} ${u}${g ? ` <span class="muted">(${n0(100*v/g)}%)</span>` : ''}</div><div class="bar"><i style="width:${g ? Math.min(100, 100*v/g) : 0}%"></i></div></div>`;
-    rings = `<div class="card"><h2>Conditie-ringen <span class="muted small">· ${esc(fmtDate(keyToMs(k), {weekday:'long', day:'numeric', month:'long'}))}</span></h2>${m('Bewegen', r.move, r.moveGoal, 'kcal')}${m('Training', r.ex, r.exGoal, 'min')}${m('Staan', r.stand, r.standGoal, 'u')}<p class="muted small" style="margin:6px 0 0">Uit je laatste Gezondheid-export. Importeer opnieuw voor recente data.</p></div>`;
+    rings = `<div class="card"><h2>Conditie-ringen <span class="muted small">· ${esc(fmtDate(keyToMs(k), {weekday:'long', day:'numeric', month:'long'}))}</span></h2>${m('Bewegen', r.move, r.moveGoal, 'kcal')}${m('Training', r.ex, r.exGoal, 'min')}${m('Staan', r.stand, r.standGoal, 'u')}<p class="muted small" style="margin:6px 0 0">${S.cfg.healthSyncAt ? 'Bijgewerkt via je Opdracht: '+esc(new Date(S.cfg.healthSyncAt).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'})) : 'Uit je laatste Gezondheid-export.'}</p></div>`;
   }
   return `<h1>Sportoverzicht</h1><p class="sub">${esc(fmtDate(now, {weekday:'long', day:'numeric', month:'long'}))}</p>
   <div class="card"><div class="small muted">Trainingsdagen in ${new Date().getFullYear()}</div><div class="hero">${n0(yr.days)}</div><div class="small" style="color:var(--ink2);margin-top:6px">${n0(yr.n)} trainingen · ${fmtDur(yr.s)}${yr.m ? ' · '+fmtKm(yr.m) : ''}</div></div>
@@ -510,7 +512,9 @@ function vKoppel(){
   <p class="small">${hh ? `<span class="ok">✓ Geïmporteerd</span> · ${n0(S.health.length)} workouts, ${n0(Object.keys(S.daily).length)} dagen<br>${last(c.healthAt)}` : 'Hier zitten je Conditie-ringen, stappen, slaap, gewicht, workouts van je Watch en alles wat andere apps naar Gezondheid sturen (MyFitnessPal, Technogym, Runna, …).'}</p>
   <ol class="steps small"><li>Open <b>Gezondheid</b> → tik op je profielfoto (rechtsboven).</li><li>Helemaal onderaan: <b>Exporteer alle gezondheidsgegevens</b>. Dit kan een paar minuten duren.</li><li>Kies <b>Bewaar in Bestanden</b>.</li><li>Kies hieronder dat zip-bestand (of de .xml erin).</li></ol>
   <label class="btn">📂 Kies Gezondheid-export<input type="file" id="fHealth" accept=".zip,.xml,application/zip,text/xml" hidden></label>
-  <div class="prog" id="pHealth" hidden><i></i></div><div class="msg" id="mHealth"></div></div>
+  <div class="prog" id="pHealth" hidden><i></i></div><div class="msg" id="mHealth"></div>
+  <h3>Dagelijks bijwerken met één tik</h3>
+  <p class="small">${c.healthSyncAt ? `<span class="ok">✓ Opdracht werkt</span> · laatst: ${esc(new Date(c.healthSyncAt).toLocaleString('nl-BE', {dateStyle:'medium', timeStyle:'short'}))}<br>` : ''}Met de Opdracht <b>Sport bijwerken</b> stuur je je stappen, actieve kcal, trainingsminuten, gewicht, voeding en eiwitten van de laatste 7 dagen naar deze app. Doe af en toe nog een volledige export voor slaap en workouts.</p></div>
 
   <div class="card"><h2>🟧 Strava</h2>
   <p class="small">${S.strava.length ? `<span class="ok">✓ ${n0(S.strava.length)} activiteiten</span>${sv.name ? ' · '+esc(sv.name) : ''} · ${last(c.stravaAt)}` : 'Al je runs, ritten en wandelingen van Strava.'}</p>
@@ -907,7 +911,7 @@ async function stravaToken(){
   Object.assign(sv, {access:j.access_token, refresh:j.refresh_token, exp:j.expires_at}); await save('cfg');
   return sv.access;
 }
-async function stravaSync(full){
+async function stravaSync(full, quiet){
   try{
     const tok = await stravaToken();
     const after = full || !S.strava.length ? 0 : Math.floor(Math.max(...S.strava.map(a => a.start))/1000) - 3*86400;
@@ -926,11 +930,12 @@ async function stravaSync(full){
       if(j.length < 200) break;
       page++;
     }
-    const byId = new Map(full ? [] : S.strava.map(a => [a.id, a])); for(const a of out) byId.set(a.id, a);
+    const byId = new Map(full ? [] : S.strava.map(a => [a.id, a])), had = byId.size; for(const a of out) byId.set(a.id, a);
     S.strava = [...byId.values()]; S.cfg.stravaAt = Date.now();
-    await save('strava', 'cfg'); render();
+    await save('strava', 'cfg');
+    if(!quiet || byId.size !== had) render();
     msg('mStrava', `✓ ${n0(out.length)} ${full ? '' : 'nieuwe/gewijzigde '}activiteiten opgehaald. Totaal: ${n0(S.strava.length)}.`);
-  }catch(e){ console.error(e); msg('mStrava', 'Mislukt: ' + (e.message === 'Failed to fetch' ? 'geen verbinding met Strava.' : e.message), true); }
+  }catch(e){ console.error(e); if(quiet) return; msg('mStrava', 'Mislukt: ' + (e.message === 'Failed to fetch' ? 'geen verbinding met Strava.' : e.message), true); }
 }
 
 /* ---------- handmatig ---------- */
@@ -960,14 +965,74 @@ async function importBackup(file){
   }catch(e){ msg('mBackup', 'Mislukt: ' + e.message, true); }
 }
 
+/* ---------- Opdracht (Shortcut): #sync?steps=…;…&active=… ---------- */
+function syncNum(v, intish){
+  v = String(v || '').replace(/[^\d.,\-]/g, '');
+  if(!v) return 0;
+  if(v.includes('.') && v.includes(',')) v = v.lastIndexOf(',') > v.lastIndexOf('.') ? v.replace(/\./g, '').replace(',', '.') : v.replace(/,/g, '');
+  else if(v.includes(',')) v = /^\d{1,3}(,\d{3})+$/.test(v) && intish ? v.replace(/,/g, '') : v.replace(',', '.');
+  else if(/^\d{1,3}(\.\d{3})+$/.test(v) && intish) v = v.replace(/\./g, '');
+  const x = parseFloat(v); return isNaN(x) ? 0 : x;
+}
+function splitList(v){ return String(v || '').split(/[;\n|]+/).map(x => x.trim()).filter(x => x !== ''); }
+async function healthShortcut(){
+  if(!location.hash.startsWith('#sync')) return false;
+  const q = new URLSearchParams(location.hash.replace(/^#sync\??/, ''));
+  history.replaceState(null, '', location.pathname + location.search);
+  const F = {steps:['steps',1], active:['active',1], ex:['ex',1], weight:['weight',0], eaten:['eaten',1], protein:['protein',0], rhr:['rhr',1], stand:['stand',1]};
+  // laatste bekende doelen voor de ringen
+  let goals = {moveGoal:600, exGoal:30, standGoal:12};
+  for(const k of Object.keys(S.daily).sort().reverse()){ const r = S.daily[k].ring; if(r && r.moveGoal){ goals = {moveGoal:r.moveGoal, exGoal:r.exGoal || 30, standGoal:r.standGoal || 12}; break; } }
+  const today = dayStart(Date.now()); let n = 0;
+  const lists = {};
+  for(const [param, [key, intish]] of Object.entries(F)){
+    if(!q.has(param)) continue;
+    lists[key] = splitList(q.get(param)).map(x => syncNum(x, intish));
+  }
+  // de Opdracht sorteert nieuwste eerst: plaats 0 = vandaag
+  const len = Math.max(0, ...Object.values(lists).map(l => l.length));
+  for(let i = 0; i < Math.min(len, 31); i++){
+    const k = dk(dayStart(today - i*DAY + DAY/2)), d = S.daily[k] || {};
+    let touched = false;
+    for(const [key, l] of Object.entries(lists)){
+      const v = l[i]; if(!v || v < 0) continue;
+      if(key === 'ex' || key === 'stand') continue;
+      d[key] = key === 'weight' ? Math.round(v*10)/10 : Math.round(v*10)/10; touched = true;
+    }
+    const ex = lists.ex ? lists.ex[i] : 0, st = lists.stand ? lists.stand[i] : 0;
+    if(d.active || ex || st){ d.ring = {...goals, ...(d.ring || {}), move:d.active || (d.ring && d.ring.move) || 0, ex:ex || (d.ring && d.ring.ex) || 0, stand:st || (d.ring && d.ring.stand) || 0}; touched = true; }
+    if(touched){ S.daily[k] = d; n++; }
+  }
+  if(!n){ toast('De Opdracht stuurde geen bruikbare gegevens. Kijk de stappen nog eens na.'); return true; }
+  S.cfg.healthSyncAt = Date.now();
+  await save('daily', 'cfg');
+  toast(`✓ Gezondheid bijgewerkt: ${n} dagen`);
+  return true;
+}
+let toastT;
+function toast(t){ const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => el.hidden = true, 4000); }
+async function autoStrava(){
+  const sv = S.cfg.strava;
+  if(!sv || !sv.refresh || !navigator.onLine) return;
+  if(Date.now() - (S.cfg.stravaAt || 0) < 10*6e4) return;
+  const before = S.strava.length;
+  await stravaSync(false, true);
+  const nieuw = S.strava.length - before;
+  if(nieuw > 0) toast(`✓ ${nieuw} nieuwe Strava-activiteit${nieuw > 1 ? 'en' : ''}`);
+}
+addEventListener('hashchange', async () => { if(await healthShortcut()) render(); });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') autoStrava(); });
+
 /* ---------- start ---------- */
 let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
 (async () => {
   try{ TAB = localStorage.getItem('sport_tab') || 'home'; }catch(_){}
   if(!TABS.some(t => t[0] === TAB)) TAB = 'home';
   await loadAll();
+  if(location.hash.startsWith('#sync')){ await healthShortcut(); TAB = 'home'; }
   render();
   await stravaCallback();
+  autoStrava();
 })();
 </script>
 </body>
