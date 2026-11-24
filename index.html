@@ -109,7 +109,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 <script>
 "use strict";
-const VERSIE = '1.1';
+const VERSIE = '1.2';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -871,8 +871,10 @@ async function importStravaArchive(file){
 
 /* ---------- Strava ---------- */
 async function stravaConnect(){
-  const id = $('#sId').value.trim(), secret = $('#sSecret').value.trim();
+  const id = $('#sId').value.replace(/\s+/g, ''), secret = $('#sSecret').value.replace(/\s+/g, '');
   if(!id || !secret) return msg('mStrava', 'Vul Client ID en Client Secret in.', true);
+  if(!/^\d+$/.test(id)) return msg('mStrava', 'De Client ID is alleen een getal (bv. 184523). Kijk op strava.com/settings/api: neem niet het geheim of het toegangstoken.', true);
+  if(!/^[0-9a-f]{40}$/i.test(secret)) return msg('mStrava', 'Het Client Secret lijkt niet te kloppen: het is een code van 40 tekens (cijfers en letters a-f). Tik op "tonen" bij Clientgeheim en kopieer het volledig.', true);
   const state = Math.random().toString(36).slice(2);
   S.cfg.strava = {id, secret, state}; await save('cfg');
   location.href = 'https://www.strava.com/oauth/authorize?' + new URLSearchParams({client_id:id, response_type:'code', redirect_uri:REDIRECT, approval_prompt:'auto', scope:'read,activity:read_all', state});
