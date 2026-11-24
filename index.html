@@ -67,6 +67,8 @@ input[type=text],input[type=password],input[type=number],input[type=date],input[
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin:0 0 12px;scrollbar-width:none}
 .chip{white-space:nowrap;background:var(--chip);border:1px solid transparent;color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:13.5px;cursor:pointer}
 .chip[aria-pressed="true"]{border-color:var(--ink);font-weight:600}
+.chip:disabled{opacity:.35}
+.pernav{display:flex;align-items:center;gap:10px;margin:0 0 12px}.pernav>div{flex:1;text-align:center}.pernav .chip{font-size:20px;line-height:1;padding:6px 14px}
 .src{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--chip);color:var(--ink2);vertical-align:1px}
 .act{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--grid)}
 .act:first-child{border-top:0}
@@ -111,7 +113,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
 <script>
 "use strict";
-const VERSIE = '1.4';
+const VERSIE = '1.5';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -266,7 +268,7 @@ function barChart(data, {h=170, fmt=n0, title=''}={}){
   const max = niceMax(Math.max(...data.map(d => d.v)));
   const n = data.length, cw = (W - pl - pr)/n, gap = Math.max(2, Math.min(cw*0.3, 10)), bw = cw - gap;
   let s = yAxis(W, pl, pr, pt, ih, max, fmt);
-  const every = Math.ceil(n / Math.max(3, Math.floor((W-pl)/58)));
+  const every = n <= 7 ? 1 : Math.ceil(n / Math.max(3, Math.floor((W-pl)/58)));
   data.forEach((d, i) => {
     const x = pl + i*cw + gap/2, bh = ih * (d.v/max), y = pt + ih - bh;
     s += `<path d="${barPath(x, y, bw, bh, 4)}" fill="var(--s1)" opacity="${d.dim ? .45 : 1}"/>`;
@@ -377,41 +379,111 @@ function emptyState(){
   return `<div class="card empty"><div class="big">🔗</div><h2>Nog geen gegevens</h2><p>Koppel Strava, importeer je Apple Gezondheid-export of je oude Hevy-workouts.</p><button class="btn" onclick="TAB='koppel';render()">Naar Koppelen</button></div>`;
 }
 
+/* periodes voor het overzicht */
+let PER = 'week', OFF = 0;
+try{ PER = localStorage.getItem('sport_per') || 'week'; }catch(_){}
+if(!['week','maand','jaar'].includes(PER)) PER = 'week';
+function periodBounds(per, off){
+  const now = new Date();
+  if(per === 'week'){ const f = new Date(weekStart(now.getTime())); f.setDate(f.getDate() - 7*off); const t = new Date(f); t.setDate(t.getDate() + 7); return [f.getTime(), t.getTime()]; }
+  if(per === 'maand') return [new Date(now.getFullYear(), now.getMonth() - off, 1).getTime(), new Date(now.getFullYear(), now.getMonth() - off + 1, 1).getTime()];
+  return [new Date(now.getFullYear() - off, 0, 1).getTime(), new Date(now.getFullYear() - off + 1, 0, 1).getTime()];
+}
+function isoWeek(ms){ const d = new Date(ms); d.setHours(0,0,0,0); d.setDate(d.getDate() + 3 - (d.getDay()+6)%7); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1)/DAY - 3 + (w1.getDay()+6)%7)/7); }
+function periodLabel(per, off, f, t){
+  if(per === 'week'){
+    const e = t - DAY/2, sameM = new Date(f).getMonth() === new Date(e).getMonth();
+    const r = sameM ? `${new Date(f).getDate()}–${fmtDate(e, {day:'numeric', month:'short'})}` : `${fmtDate(f, {day:'numeric', month:'short'})} – ${fmtDate(e, {day:'numeric', month:'short'})}`;
+    return [off === 0 ? 'Deze week' : off === 1 ? 'Vorige week' : 'Week ' + isoWeek(f), `week ${isoWeek(f)} · ${r}${new Date(f).getFullYear() !== new Date().getFullYear() ? ' ' + new Date(f).getFullYear() : ''}`];
+  }
+  if(per === 'maand'){ const m = new Date(f).toLocaleDateString('nl-BE', {month:'long', year:'numeric'}); return [off === 0 ? 'Deze maand' : off === 1 ? 'Vorige maand' : m, m]; }
+  const y = new Date(f).getFullYear(); return [off === 0 ? 'Dit jaar' : String(y), String(y)];
+}
+function deltaTxt(cur, prev, fmt, word){
+  if(!prev && !cur) return '';
+  const d = cur - prev;
+  if(Math.abs(d) < 1e-9) return `= ${word}`;
+  return `${d > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))} t.o.v. ${word}`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-per],[data-off]'); if(!b) return;
+  if(b.dataset.per){ PER = b.dataset.per; OFF = 0; try{ localStorage.setItem('sport_per', PER); }catch(_){} }
+  if(b.dataset.off){ OFF = Math.max(0, OFF + +b.dataset.off); }
+  render();
+});
+
 function vHome(){
   const {acts, days} = data();
-  if(!acts.length && !Object.keys(S.daily).length) return `<h1>Sportoverzicht</h1><p class="sub">Al je sport op één plek.</p>` + emptyState();
-  const now = Date.now(), y0 = new Date(new Date().getFullYear(), 0, 1).getTime();
-  const yr = periodSum(acts, y0, now + DAY);
-  const wk = periodSum(acts, weekStart(now), now + DAY), lw = periodSum(acts, weekStart(now) - 7*DAY, weekStart(now));
-  const st = streaks(days);
-  const total = days.size;
-  // wekelijkse minuten (12 weken)
-  const wdata = [];
-  for(let i = 11; i >= 0; i--){
-    const ws = weekStart(now) - i*7*DAY, p = periodSum(acts, ws, ws + 7*DAY);
-    wdata.push({v: Math.round(p.s/60), label: fmtDate(ws, {day:'numeric', month:'short'}), dim: i === 0, tip: `Week van ${fmtDate(ws, {day:'numeric', month:'long'})}${i===0?' (bezig)':''}\n${p.n} trainingen op ${p.days} dagen\n${fmtDur(p.s)}${p.m ? ' · '+fmtKm(p.m) : ''}`});
+  if(!acts.length && !Object.keys(S.daily).length && !Object.keys(S.mfp||{}).length) return `<h1>Sportoverzicht</h1><p class="sub">Al je sport op één plek.</p>` + emptyState();
+  const now = Date.now();
+  const [f, t] = periodBounds(PER, OFF), [pf, pt] = periodBounds(PER, OFF + 1);
+  const cur = periodSum(acts, f, t), prev = periodSum(acts, pf, OFF === 0 ? Math.min(pt, pf + (now - f)) : pt);
+  const [title, sub] = periodLabel(PER, OFF, f, t);
+  const word = {week:'vorige week', maand:'vorige maand', jaar:'vorig jaar'}[PER] + (OFF === 0 ? ' (zelfde moment)' : '');
+  const inP = acts.filter(a => a.start >= f && a.start < t);
+  const kcal = inP.reduce((s, a) => s + (a.kcal||0), 0);
+  const nDays = Math.round((Math.min(t, dayStart(now) + DAY) - f) / DAY);
+  // grafiek: per dag (week/maand) of per maand (jaar)
+  const bars = [];
+  if(PER === 'jaar'){
+    for(let m = 0; m < 12; m++){
+      const a0 = new Date(new Date(f).getFullYear(), m, 1).getTime(), a1 = new Date(new Date(f).getFullYear(), m+1, 1).getTime();
+      const p = periodSum(acts, a0, a1), ml = new Date(a0).toLocaleDateString('nl-BE', {month:'long'});
+      bars.push({v:Math.round(p.s/360)/10, label:new Date(a0).toLocaleDateString('nl-BE', {month:'narrow'}).toUpperCase(), dim:a0 > now, tip:`${ml}\n${p.n} trainingen op ${p.days} dagen\n${fmtDur(p.s)}${p.m ? ' · '+fmtKm(p.m) : ''}`});
+    }
+  } else {
+    for(let d = new Date(f); d.getTime() < t; d.setDate(d.getDate() + 1)){
+      const ms = d.getTime(), x = days.get(dk(ms));
+      bars.push({v:x ? Math.round(x.min) : 0, label: PER === 'week' ? d.toLocaleDateString('nl-BE', {weekday:'short'}).replace('.', '') : String(d.getDate()), dim: ms > now,
+        tip:`${fmtDate(ms, {weekday:'long', day:'numeric', month:'long'})}\n${x ? `${x.n} training${x.n > 1 ? 'en' : ''} · ${fmtDur(x.min*60)}\n${[...x.types].map(y => SPORT[y][0]).join(', ')}` : ms > now ? 'Nog niet gebeurd' : 'Rustdag'}`});
+    }
   }
-  // ringen
-  const ringKeys = Object.keys(S.daily).filter(k => S.daily[k].ring).sort();
+  // per sport
+  const per = {};
+  for(const a of inP){ const q = per[a.type] ||= {n:0, s:0, m:0}; q.n++; q.s += a.dur||0; q.m += a.dist||0; }
+  const types = Object.keys(per).sort((x, y) => per[y].s - per[x].s);
+  // lichaam in deze periode
+  const D = dailyMerged(); let st = [0,0], ea = [0,0], pr = [0,0], w0 = null, w1 = null;
+  for(let d = new Date(f); d.getTime() < t; d.setDate(d.getDate() + 1)){
+    const x = D[dk(d.getTime())]; if(!x) continue;
+    if(x.steps){ st[0] += x.steps; st[1]++; } if(x.eaten){ ea[0] += x.eaten; ea[1]++; } if(x.protein){ pr[0] += x.protein; pr[1]++; }
+    if(x.weight){ if(w0 === null) w0 = x.weight; w1 = x.weight; }
+  }
+  const body = st[1] || ea[1] || w0 !== null ? `<div class="card"><h2>Lichaam & voeding</h2><div class="tiles" style="margin:0">
+    ${st[1] ? `<div class="tile"><div class="lbl">Stappen / dag</div><div class="val">${n0(st[0]/st[1])}</div><div class="delta">${st[1]} dagen gemeten</div></div>` : ''}
+    ${ea[1] ? `<div class="tile"><div class="lbl">Gegeten / dag</div><div class="val">${n0(ea[0]/ea[1])}</div><div class="delta">kcal · ${ea[1]} dagen gelogd</div></div>` : ''}
+    ${pr[1] ? `<div class="tile"><div class="lbl">Eiwitten / dag</div><div class="val">${n0(pr[0]/pr[1])} g</div><div class="delta">gemiddeld</div></div>` : ''}
+    ${w0 !== null ? `<div class="tile"><div class="lbl">Gewicht</div><div class="val">${n1(w1)} kg</div><div class="delta">${w1 !== w0 ? (w1 > w0 ? '▲ +' : '▼ −') + n1(Math.abs(w1 - w0)) + ' kg in deze periode' : 'stabiel'}</div></div>` : ''}
+  </div></div>` : '';
+  // ringen (alleen bij de huidige periode)
   let rings = '';
-  if(ringKeys.length){
+  const ringKeys = Object.keys(S.daily).filter(k => S.daily[k].ring).sort();
+  if(OFF === 0 && ringKeys.length){
     const k = ringKeys[ringKeys.length-1], r = S.daily[k].ring;
     const m = (l, v, g, u) => `<div class="meter"><div class="small"><b>${l}</b> ${n0(v)}${g ? ' / '+n0(g) : ''} ${u}${g ? ` <span class="muted">(${n0(100*v/g)}%)</span>` : ''}</div><div class="bar"><i style="width:${g ? Math.min(100, 100*v/g) : 0}%"></i></div></div>`;
     rings = `<div class="card"><h2>Conditie-ringen <span class="muted small">· ${esc(fmtDate(keyToMs(k), {weekday:'long', day:'numeric', month:'long'}))}</span></h2>${m('Bewegen', r.move, r.moveGoal, 'kcal')}${m('Training', r.ex, r.exGoal, 'min')}${m('Staan', r.stand, r.standGoal, 'u')}<p class="muted small" style="margin:6px 0 0">${S.cfg.healthSyncAt ? 'Bijgewerkt via je Opdracht: '+esc(new Date(S.cfg.healthSyncAt).toLocaleString('nl-BE', {dateStyle:'short', timeStyle:'short'})) : 'Uit je laatste Gezondheid-export.'}</p></div>`;
   }
-  return `<h1>Sportoverzicht</h1><p class="sub">${esc(fmtDate(now, {weekday:'long', day:'numeric', month:'long'}))}</p>
-  <div class="card"><div class="small muted">Trainingsdagen in ${new Date().getFullYear()}</div><div class="hero">${n0(yr.days)}</div><div class="small" style="color:var(--ink2);margin-top:6px">${n0(yr.n)} trainingen · ${fmtDur(yr.s)}${yr.m ? ' · '+fmtKm(yr.m) : ''}</div></div>
+  const s2 = streaks(days);
+  const unit = PER === 'jaar' ? 'uren per maand' : 'minuten per dag';
+  return `<h1>Sportoverzicht</h1>
+  <div class="chips" style="margin-top:6px">${['week','maand','jaar'].map(x => `<button class="chip" data-per="${x}" aria-pressed="${PER===x}">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>
+  <div class="pernav"><button class="chip" data-off="1" aria-label="Vorige periode">‹</button><div><b>${esc(title)}</b>${sub !== title ? `<div class="small muted">${esc(sub)}</div>` : ''}</div><button class="chip" data-off="-1" aria-label="Volgende periode" ${OFF === 0 ? 'disabled' : ''}>›</button></div>
+  <div class="card"><div class="small muted">Trainingsdagen</div><div class="hero">${n0(cur.days)}<span style="font-size:22px;color:var(--muted);font-weight:600"> / ${n0(nDays)}</span></div>
+  <div class="small" style="color:var(--ink2);margin-top:6px">${esc(deltaTxt(cur.days, prev.days, n0, word))}</div></div>
   <div class="tiles">
-    <div class="tile"><div class="lbl">Deze week</div><div class="val">${wk.n}</div><div class="delta">${fmtDur(wk.s)} · vorige week ${lw.n}</div></div>
-    <div class="tile"><div class="lbl">Weken op rij</div><div class="val">${st.ws}</div><div class="delta">met minstens 1 training</div></div>
-    <div class="tile"><div class="lbl">Dagen op rij</div><div class="val">${st.ds}</div><div class="delta">record: ${st.best} dagen</div></div>
-    <div class="tile"><div class="lbl">Ooit getraind</div><div class="val">${n0(total)}</div><div class="delta">dagen · sinds ${acts.length ? esc(fmtDateY(acts[acts.length-1].start)) : '–'}</div></div>
+    <div class="tile"><div class="lbl">Trainingen</div><div class="val">${n0(cur.n)}</div><div class="delta">${esc(deltaTxt(cur.n, prev.n, n0, word) || '–')}</div></div>
+    <div class="tile"><div class="lbl">Trainingstijd</div><div class="val">${fmtDur(cur.s)}</div><div class="delta">${esc(deltaTxt(cur.s/60, prev.s/60, v => fmtDur(v*60), word) || '–')}</div></div>
+    <div class="tile"><div class="lbl">Afstand</div><div class="val">${cur.m ? n1(cur.m/1000) + ' km' : '–'}</div><div class="delta">${esc(deltaTxt(cur.m/1000, prev.m/1000, n1, word).replace(/(\d)( t\.o\.v)/, '$1 km$2') || '–')}</div></div>
+    <div class="tile"><div class="lbl">Verbrand (training)</div><div class="val">${kcal ? n0(kcal) : '–'}</div><div class="delta">kcal${OFF === 0 ? ` · ${s2.ws} weken op rij actief` : ''}</div></div>
   </div>
+  <div class="card"><h2>Trainingstijd <span class="muted small">(${unit})</span></h2>${barChart(bars, {fmt: PER === 'jaar' ? n1 : n0, title:'Trainingstijd ' + sub})}</div>
+  ${types.length ? `<div class="card scroll-x"><h2>Per sport</h2><table><thead><tr><th>Sport</th><th class="n">Aantal</th><th class="n">Tijd</th><th class="n">Afstand</th></tr></thead><tbody>
+    ${types.map(x => `<tr><td>${SPORT[x][1]} ${SPORT[x][0]}</td><td class="n">${per[x].n}</td><td class="n">${fmtDur(per[x].s)}</td><td class="n">${per[x].m ? n1(per[x].m/1000)+' km' : '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+  ${body}
   ${rings}
-  <div class="card"><h2>Kalender · 26 weken</h2><div class="scroll-x">${heatmap(days)}</div></div>
-  <div class="card"><h2>Trainingstijd per week <span class="muted small">(minuten)</span></h2>${barChart(wdata, {title:'Minuten training per week'})}</div>
-  <div class="card"><h2>Laatste trainingen</h2>${acts.slice(0, 6).map(a => actRow(a)).join('') || '<p class="muted">Nog geen trainingen.</p>'}
-  ${acts.length > 6 ? `<button class="btn ghost" onclick="TAB='train';render()">Alle ${n0(acts.length)} trainingen</button>` : ''}</div>`;
+  <div class="card"><h2>Trainingen ${PER === 'week' ? 'deze week' : PER === 'maand' ? 'deze maand' : 'dit jaar'}</h2>${inP.slice(0, PER === 'week' ? 20 : 8).map(a => actRow(a)).join('') || '<p class="muted">Geen trainingen in deze periode.</p>'}
+  ${inP.length > (PER === 'week' ? 20 : 8) ? `<button class="btn ghost" onclick="TAB='train';render()">Alle trainingen</button>` : ''}</div>
+  ${OFF === 0 ? `<div class="card"><h2>Kalender · 26 weken</h2><div class="scroll-x">${heatmap(days)}</div><p class="small muted" style="margin:8px 0 0">Dagen op rij: ${s2.ds} · record ${s2.best} · ooit ${n0(days.size)} trainingsdagen</p></div>` : ''}`;
 }
 
 function vTrain(){
