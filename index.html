@@ -55,7 +55,7 @@ h3{font-size:15px;margin:14px 0 6px}
 .tile .val{font-size:24px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .tile .delta{font-size:12.5px;color:var(--muted)}
 .hero{font-size:56px;font-weight:700;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-nav{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);display:flex;justify-content:center;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);z-index:5}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--page);background:color-mix(in srgb,var(--page) 88%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--border);display:flex;justify-content:center;padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);z-index:5}
 nav button{flex:1;max-width:140px;background:none;border:0;color:var(--muted);font:inherit;font-size:11px;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
 nav button span{font-size:20px;line-height:1.1}
 nav button[aria-current="page"]{color:var(--ink);font-weight:600}
@@ -114,7 +114,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script>
 "use strict";
 addEventListener('error', e => { const el = document.getElementById('toast'); if(el){ el.textContent = 'Fout: ' + e.message; el.hidden = false; } });
-const VERSIE = '1.5.1';
+const VERSIE = '1.6';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -164,6 +164,7 @@ const SPORT = {
   cardio:['Cardio','❤️'], roeien:['Roeien','🚣'], yoga:['Yoga & mobiliteit','🧘'], coach:['Coachsessie','📋'],
   vechtsport:['Vechtsport','🥊'], overig:['Andere','💪']
 };
+const sp = x => SPORT[x] || SPORT.overig;
 const SRC = { strava:'Strava', hevy:'Hevy', health:'Gezondheid', manual:'Zelf' };
 function normHK(t){
   t = (t||'').replace('HKWorkoutActivityType','');
@@ -290,7 +291,7 @@ function lineChart(pts, {h=170, fmt=n1, title='', pad=0.1}={}){
   let s = '';
   for(const f of [0, .5, 1]){ const y = pt + ih - ih*f, v = lo + (hi-lo)*f;
     s += `<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="${f ? 'var(--grid)' : 'var(--axis)'}"/><text x="${pl-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${esc(fmt(v))}</text>`; }
-  for(const f of [0, .5, 1]){ const t = t0 + ts*f; s += `<text x="${Math.min(Math.max(X(t), pl+24), W-pr-24)}" y="${h-6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(fmtDate(t, {month:'short', year:'2-digit'}))}</text>`; }
+  for(const f of [0, .5, 1]){ const t = t0 + ts*f; s += `<text x="${Math.min(Math.max(X(t), pl+24), W-pr-24)}" y="${h-6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(fmtDate(t, ts < 75*DAY ? {day:'numeric', month:'short'} : {month:'short', year:'2-digit'}))}</text>`; }
   const d = pts.map((p, i) => (i ? 'L' : 'M') + X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join('');
   s += `<path d="${d}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   const last = pts[pts.length-1];
@@ -315,7 +316,7 @@ function heatmap(days, weeks = 26){
       const t = dayStart(wk + r*DAY + DAY/2); if(t > today) continue;
       const d = days.get(dk(t)), m = d ? d.min : 0;
       const lv = !d ? 0 : m < 30 ? 1 : m < 60 ? 2 : m < 90 ? 3 : 4;
-      const tip = fmtDate(t, {weekday:'long', day:'numeric', month:'long'}) + '\n' + (d ? `${d.n} training${d.n>1?'en':''} · ${fmtDur(m*60)}\n${[...d.types].map(x => SPORT[x][0]).join(', ')}` : 'Rustdag');
+      const tip = fmtDate(t, {weekday:'long', day:'numeric', month:'long'}) + '\n' + (d ? `${d.n} training${d.n>1?'en':''} · ${fmtDur(m*60)}\n${[...d.types].map(x => sp(x)[0]).join(', ')}` : 'Rustdag');
       s += `<rect x="${lblW + c*(cell+gap)}" y="${r*(cell+gap)}" width="${cell}" height="${cell}" rx="2" fill="var(--h${lv})" data-tip="${esc(tip)}"/>`;
     }
   }
@@ -414,6 +415,11 @@ document.addEventListener('click', e => {
   render();
 });
 
+function perNav(){
+  const [f, t] = periodBounds(PER, OFF), [title, sub] = periodLabel(PER, OFF, f, t);
+  return `<div class="chips" style="margin-top:6px">${['week','maand','jaar'].map(x => `<button class="chip" data-per="${x}" aria-pressed="${PER===x}">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>
+  <div class="pernav"><button class="chip" data-off="1" aria-label="Vorige periode">‹</button><div><b>${esc(title)}</b>${sub !== title ? `<div class="small muted">${esc(sub)}</div>` : ''}</div><button class="chip" data-off="-1" aria-label="Volgende periode" ${OFF === 0 ? 'disabled' : ''}>›</button></div>`;
+}
 function vHome(){
   const {acts, days} = data();
   if(!acts.length && !Object.keys(S.daily).length && !Object.keys(S.mfp||{}).length) return `<h1>Sportoverzicht</h1><p class="sub">Al je sport op één plek.</p>` + emptyState();
@@ -437,7 +443,7 @@ function vHome(){
     for(let d = new Date(f); d.getTime() < t; d.setDate(d.getDate() + 1)){
       const ms = d.getTime(), x = days.get(dk(ms));
       bars.push({v:x ? Math.round(x.min) : 0, label: PER === 'week' ? d.toLocaleDateString('nl-BE', {weekday:'short'}).replace('.', '') : String(d.getDate()), dim: ms > now,
-        tip:`${fmtDate(ms, {weekday:'long', day:'numeric', month:'long'})}\n${x ? `${x.n} training${x.n > 1 ? 'en' : ''} · ${fmtDur(x.min*60)}\n${[...x.types].map(y => SPORT[y][0]).join(', ')}` : ms > now ? 'Nog niet gebeurd' : 'Rustdag'}`});
+        tip:`${fmtDate(ms, {weekday:'long', day:'numeric', month:'long'})}\n${x ? `${x.n} training${x.n > 1 ? 'en' : ''} · ${fmtDur(x.min*60)}\n${[...x.types].map(y => sp(y)[0]).join(', ')}` : ms > now ? 'Nog niet gebeurd' : 'Rustdag'}`});
     }
   }
   // per sport
@@ -468,8 +474,7 @@ function vHome(){
   const s2 = streaks(days);
   const unit = PER === 'jaar' ? 'uren per maand' : 'minuten per dag';
   return `<h1>Sportoverzicht</h1>
-  <div class="chips" style="margin-top:6px">${['week','maand','jaar'].map(x => `<button class="chip" data-per="${x}" aria-pressed="${PER===x}">${x[0].toUpperCase()+x.slice(1)}</button>`).join('')}</div>
-  <div class="pernav"><button class="chip" data-off="1" aria-label="Vorige periode">‹</button><div><b>${esc(title)}</b>${sub !== title ? `<div class="small muted">${esc(sub)}</div>` : ''}</div><button class="chip" data-off="-1" aria-label="Volgende periode" ${OFF === 0 ? 'disabled' : ''}>›</button></div>
+  ${perNav()}
   <div class="card"><div class="small muted">Trainingsdagen</div><div class="hero">${n0(cur.days)}<span style="font-size:22px;color:var(--muted);font-weight:600"> / ${n0(nDays)}</span></div>
   <div class="small" style="color:var(--ink2);margin-top:6px">${esc(deltaTxt(cur.days, prev.days, n0, word))}</div></div>
   <div class="tiles">
@@ -480,7 +485,7 @@ function vHome(){
   </div>
   <div class="card"><h2>Trainingstijd <span class="muted small">(${unit})</span></h2>${barChart(bars, {fmt: PER === 'jaar' ? n1 : n0, title:'Trainingstijd ' + sub})}</div>
   ${types.length ? `<div class="card scroll-x"><h2>Per sport</h2><table><thead><tr><th>Sport</th><th class="n">Aantal</th><th class="n">Tijd</th><th class="n">Afstand</th></tr></thead><tbody>
-    ${types.map(x => `<tr><td>${SPORT[x][1]} ${SPORT[x][0]}</td><td class="n">${per[x].n}</td><td class="n">${fmtDur(per[x].s)}</td><td class="n">${per[x].m ? n1(per[x].m/1000)+' km' : '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    ${types.map(x => `<tr><td>${sp(x)[1]} ${sp(x)[0]}</td><td class="n">${per[x].n}</td><td class="n">${fmtDur(per[x].s)}</td><td class="n">${per[x].m ? n1(per[x].m/1000)+' km' : '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
   ${body}
   ${rings}
   <div class="card"><h2>Trainingen ${PER === 'week' ? 'deze week' : PER === 'maand' ? 'deze maand' : 'dit jaar'}</h2>${inP.slice(0, PER === 'week' ? 20 : 8).map(a => actRow(a)).join('') || '<p class="muted">Geen trainingen in deze periode.</p>'}
@@ -504,9 +509,9 @@ function vTrain(){
   if(month) html += '</div>';
   return `<h1>Trainingen</h1><p class="sub">${n0(acts.length)} trainingen uit ${[...new Set(acts.map(a => SRC[a.src]))].join(', ')}</p>
   <div class="card scroll-x"><table><thead><tr><th>Sport</th><th class="n">Aantal</th><th class="n">Tijd</th><th class="n">Afstand</th></tr></thead><tbody>
-  ${types.map(t => `<tr><td>${SPORT[t][1]} ${SPORT[t][0]}</td><td class="n">${n0(per[t].n)}</td><td class="n">${n0(per[t].s/3600)} u</td><td class="n">${per[t].m ? n0(per[t].m/1000)+' km' : '–'}</td></tr>`).join('')}
+  ${types.map(t => `<tr><td>${sp(t)[1]} ${sp(t)[0]}</td><td class="n">${n0(per[t].n)}</td><td class="n">${n0(per[t].s/3600)} u</td><td class="n">${per[t].m ? n0(per[t].m/1000)+' km' : '–'}</td></tr>`).join('')}
   </tbody></table></div>
-  <div class="chips" id="chips">${['alles', ...types].map(t => `<button class="chip" data-f="${t}" aria-pressed="${FILTER===t}">${t==='alles' ? 'Alles' : SPORT[t][1]+' '+SPORT[t][0]}</button>`).join('')}</div>
+  <div class="chips" id="chips">${['alles', ...types].map(t => `<button class="chip" data-f="${t}" aria-pressed="${FILTER===t}">${t==='alles' ? 'Alles' : sp(t)[1]+' '+sp(t)[0]}</button>`).join('')}</div>
   ${html}${list.length > 400 ? '<p class="muted small">De 400 recentste worden getoond.</p>' : ''}`;
 }
 document.addEventListener('click', e => { const c = e.target.closest('#chips [data-f]'); if(c){ FILTER = c.dataset.f; render(); } });
@@ -558,37 +563,76 @@ document.addEventListener('input', e => { if(e.target.id === 'exq'){ EXQ = e.tar
 function vLichaam(){
   const D = dailyMerged(), keys = Object.keys(D).sort();
   if(!keys.length) return `<h1>Lichaam</h1><p class="sub">Stappen, slaap, gewicht, voeding</p><div class="card empty"><div class="big">❤️</div><p>Deze gegevens komen uit Apple Gezondheid of je MyFitnessPal-export.</p><button class="btn" onclick="TAB='koppel';render()">Naar Koppelen</button></div>`;
-  const lastK = keys[keys.length-1], lastMs = keyToMs(lastK);
-  const avg = (f, n) => { let s = 0, c = 0; for(let i = 0; i < n; i++){ const d = D[dk(lastMs - i*DAY)]; if(d && d[f]){ s += d[f]; c++; } } return c ? s/c : 0; };
-  const wpts = keys.filter(k => D[k].weight).map(k => ({t:keyToMs(k), v:D[k].weight, tip:`${fmtDateY(keyToMs(k))}\n${n1(D[k].weight)} kg`}));
-  const wl = wpts[wpts.length-1], w30 = wpts.filter(p => p.t <= (wl ? wl.t : 0) - 30*DAY).pop();
-  const steps = [], sleep = [];
-  for(let i = 29; i >= 0; i--){ const t = lastMs - i*DAY, d = D[dk(t)] || {};
-    steps.push({v:Math.round(d.steps||0), label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${n0(d.steps)} stappen`}); }
-  for(let i = 13; i >= 0; i--){ const t = lastMs - i*DAY, d = D[dk(t)] || {};
-    sleep.push({v:Math.round((d.sleep||0)/6)/10, label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`Nacht naar ${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${d.sleep ? fmtDur(d.sleep*60) : 'geen slaapdata'}`}); }
-  for(const k of keys){ const d = D[k]; if(!d.active && d.ring && d.ring.move) d.active = d.ring.move; }
-  const eat = avg('eaten', 7), prot = avg('protein', 7), act = avg('active', 7), carbs = avg('carbs', 7), fat = avg('fat', 7);
-  // voeding: 30 dagen tot de laatste dag met voeding
-  const fk = keys.filter(k => D[k].eaten), fLast = fk.length ? keyToMs(fk[fk.length-1]) : 0, food = [];
-  if(fLast) for(let i = 29; i >= 0; i--){ const t = fLast - i*DAY, d = D[dk(t)] || {};
-    food.push({v:Math.round(d.eaten||0), label:fmtDate(t, {day:'numeric', month:'numeric'}), tip:`${fmtDate(t, {weekday:'long', day:'numeric', month:'long'})}\n${d.eaten ? n0(d.eaten)+' kcal' : 'niets gelogd'}${d.protein ? '\nEiwit '+n0(d.protein)+' g' : ''}${d.carbs ? ' · koolh. '+n0(d.carbs)+' g' : ''}${d.fat ? ' · vet '+n0(d.fat)+' g' : ''}`}); }
-  const foodCard = fLast ? `<div class="card"><h2>Gegeten · 30 dagen <span class="muted small">(kcal)</span></h2>${carbs || fat ? `<p class="small" style="margin:0 0 8px;color:var(--ink2)">Gemiddeld 7 dagen: eiwit ${n0(prot)} g · koolhydraten ${n0(carbs)} g · vet ${n0(fat)} g</p>` : ''}${barChart(food, {title:'Gegeten kcal per dag'})}</div>` : '';
-  return `<h1>Lichaam</h1><p class="sub">Uit Apple Gezondheid${Object.keys(S.mfp||{}).length ? ' en MyFitnessPal' : ''} · tot ${esc(fmtDateY(lastMs))}</p>
-  <div class="tiles">
-    <div class="tile"><div class="lbl">Gewicht</div><div class="val">${wl ? n1(wl.v)+' kg' : '–'}</div><div class="delta">${wl && w30 ? (wl.v - w30.v >= 0 ? '+' : '')+n1(wl.v - w30.v)+' kg in 30 dagen' : wl ? esc(fmtDateY(wl.t)) : 'geen metingen'}</div></div>
-    <div class="tile"><div class="lbl">Stappen / dag</div><div class="val">${n0(avg('steps', 7))}</div><div class="delta">gem. 7 dagen · 30 d: ${n0(avg('steps', 30))}</div></div>
-    <div class="tile"><div class="lbl">Slaap / nacht</div><div class="val">${avg('sleep', 7) ? fmtDur(avg('sleep', 7)*60) : '–'}</div><div class="delta">gemiddelde 7 nachten</div></div>
-    <div class="tile"><div class="lbl">Rustpols</div><div class="val">${avg('rhr', 7) ? n0(avg('rhr', 7)) : '–'}</div><div class="delta">bpm · gem. 7 dagen</div></div>
-    <div class="tile"><div class="lbl">Gegeten / dag</div><div class="val">${eat ? n0(eat) : '–'}</div><div class="delta">kcal · MyFitnessPal (7 d)</div></div>
-    <div class="tile"><div class="lbl">Eiwitten / dag</div><div class="val">${prot ? n0(prot)+' g' : '–'}</div><div class="delta">${prot && wl ? n1(prot/wl.v)+' g per kg' : 'gem. 7 dagen'}</div></div>
-    <div class="tile"><div class="lbl">Actief verbrand</div><div class="val">${act ? n0(act) : '–'}</div><div class="delta">kcal / dag (7 d)</div></div>
-    <div class="tile"><div class="lbl">Dagen met data</div><div class="val">${n0(keys.length)}</div><div class="delta">sinds ${esc(fmtDateY(keyToMs(keys[0])))}</div></div>
-  </div>
-  ${foodCard}
-  ${wpts.length > 1 ? `<div class="card"><h2>Gewicht <span class="muted small">(kg)</span></h2>${lineChart(wpts.slice(-400), {title:'Gewicht'})}</div>` : ''}
-  ${steps.some(x => x.v) ? `<div class="card"><h2>Stappen · 30 dagen</h2>${barChart(steps, {title:'Stappen per dag'})}</div>` : ''}
-  ${sleep.some(x => x.v) ? `<div class="card"><h2>Slaap · 14 nachten <span class="muted small">(uren)</span></h2>${barChart(sleep, {fmt:n1, title:'Uren slaap per nacht', h:150})}</div>` : ''}`;
+  for(const k of keys){
+    const d = D[k];
+    if(!d.active && d.ring && d.ring.move) d.active = d.ring.move;
+    if(d.basal && d.active) d.burned = d.basal + d.active;
+    if(d.eaten && d.burned) d.balance = d.eaten - d.burned;
+    if(d.ring) d.closed = (d.ring.moveGoal ? d.ring.move >= d.ring.moveGoal : false) && d.ring.ex >= (d.ring.exGoal || 30) && d.ring.stand >= (d.ring.standGoal || 12) ? 1 : 0;
+  }
+  const now = Date.now(), [f, t] = periodBounds(PER, OFF), [pf, pt] = periodBounds(PER, OFF + 1);
+  const dayKeys = (a, b) => { const r = []; for(let d = new Date(a); d.getTime() < b && d.getTime() <= now; d.setDate(d.getDate() + 1)){ const k = dk(d.getTime()); D[k] ||= {}; r.push(k); } return r; };
+  const ks = dayKeys(f, t), pks = dayKeys(pf, OFF === 0 ? Math.min(pt, pf + (now - f)) : pt);
+  const av = (list, fld) => { let s = 0, c = 0; for(const k of list){ const v = D[k] && D[k][fld]; if(v){ s += v; c++; } } return c ? s/c : 0; };
+  const cnt = (list, fld) => list.filter(k => D[k] && D[k][fld] !== undefined).length;
+  const word = {week:'vorige week', maand:'vorige maand', jaar:'vorig jaar'}[PER];
+  const dl = (fld, fmt, unit) => { const c = av(ks, fld), p = av(pks, fld); if(!c || !p) return ''; const d = c - p; if(Math.abs(d) < 0.05) return `= ${word}`; return `${d > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))}${unit} t.o.v. ${word}`; };
+  const tile = (lbl, val, delta) => val ? `<div class="tile"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="delta">${delta || '&nbsp;'}</div></div>` : '';
+  // gewicht: binnen periode, anders laatste meting ervoor
+  const wIn = ks.filter(k => D[k].weight), wBefore = keys.filter(k => D[k].weight && keyToMs(k) < t);
+  const wLast = wIn.length ? D[wIn[wIn.length-1]].weight : wBefore.length ? D[wBefore[wBefore.length-1]].weight : 0;
+  const wDelta = wIn.length > 1 ? D[wIn[wIn.length-1]].weight - D[wIn[0]].weight : null;
+  const latest = fld => { const k = [...ks].reverse().find(k => D[k][fld]) || keys.filter(k => D[k][fld] && keyToMs(k) < t).pop(); return k ? D[k][fld] : 0; };
+  const sl = av(ks, 'sleep'), deep = av(ks, 'deep'), rem = av(ks, 'rem');
+  const ringDays = cnt(ks, 'closed'), closed = ks.filter(k => D[k].closed).length;
+  const prot = av(ks, 'protein'), bal = av(ks, 'balance');
+  const tiles1 = [
+    tile('Gewicht', wLast ? n1(wLast)+' kg' : '', wDelta !== null ? (Math.abs(wDelta) < 0.05 ? 'stabiel in deze periode' : (wDelta > 0 ? '▲ +' : '▼ −') + n1(Math.abs(wDelta)) + ' kg in deze periode') : wLast && !wIn.length ? 'laatste meting' : ''),
+    tile('Vetpercentage', latest('bodyfat') ? n1(latest('bodyfat'))+' %' : '', ''),
+    tile('Stappen / dag', av(ks, 'steps') ? n0(av(ks, 'steps')) : '', dl('steps', n0, '')),
+    tile('Gewandeld / dag', av(ks, 'walk') ? n1(av(ks, 'walk'))+' km' : '', av(ks, 'floors') ? n0(av(ks, 'floors'))+' trappen per dag' : ''),
+  ].join('');
+  const tiles2 = [
+    tile('Slaap / nacht', sl ? fmtDur(sl*60) : '', deep || rem ? `diep ${fmtDur(deep*60)} · REM ${fmtDur(rem*60)}` : dl('sleep', v => fmtDur(v*60), '')),
+    tile('Rustpols', av(ks, 'rhr') ? n0(av(ks, 'rhr'))+' bpm' : '', dl('rhr', n1, ' bpm')),
+    tile('HRV', av(ks, 'hrv') ? n0(av(ks, 'hrv'))+' ms' : '', dl('hrv', n0, ' ms') || 'hoger = beter hersteld'),
+    tile('VO₂max', latest('vo2') ? n1(latest('vo2')) : '', 'ml/kg/min · je conditie'),
+    tile('Ringen gesloten', ringDays ? `${closed} / ${ringDays}` : '', 'dagen met alle 3 ringen dicht'),
+    tile('Actief verbrand', av(ks, 'active') ? n0(av(ks, 'active'))+' kcal' : '', 'per dag (Bewegen-ring)'),
+  ].join('');
+  const tiles3 = [
+    tile('Gegeten / dag', av(ks, 'eaten') ? n0(av(ks, 'eaten'))+' kcal' : '', dl('eaten', n0, ' kcal') || `${cnt(ks, 'eaten') ? ks.filter(k => D[k].eaten).length + ' dagen gelogd' : ''}`),
+    tile('Eiwitten / dag', prot ? n0(prot)+' g' : '', prot && wLast ? n1(prot/wLast)+' g per kg lichaamsgewicht' : ''),
+    tile('Koolh. / vet', av(ks, 'carbs') || av(ks, 'fat') ? `${n0(av(ks, 'carbs'))} / ${n0(av(ks, 'fat'))} g` : '', 'per dag'),
+    tile('Totaal verbrand', av(ks, 'burned') ? n0(av(ks, 'burned'))+' kcal' : '', 'per dag (rust + actief)'),
+    tile('Energiebalans', bal ? (bal > 0 ? '+' : '−') + n0(Math.abs(bal)) + ' kcal' : '', bal ? (bal > 0 ? 'overschot per dag (aankomen)' : 'tekort per dag (afvallen)') + ' · schatting' : ''),
+  ].join('');
+  // grafieken per dag (week/maand) of per maand (jaar)
+  const B = [];
+  if(PER === 'jaar') for(let m = 0; m < 12; m++){ const a0 = new Date(new Date(f).getFullYear(), m, 1).getTime(), a1 = new Date(new Date(f).getFullYear(), m+1, 1).getTime();
+    B.push({keys:dayKeys(a0, a1), label:new Date(a0).toLocaleDateString('nl-BE', {month:'narrow'}).toUpperCase(), name:new Date(a0).toLocaleDateString('nl-BE', {month:'long'}) + ' (gemiddeld)', future:a0 > now}); }
+  else for(let d = new Date(f); d.getTime() < t; d.setDate(d.getDate() + 1)){ const ms = d.getTime();
+    B.push({keys:ms <= now ? [dk(ms)] : [], label: PER === 'week' ? d.toLocaleDateString('nl-BE', {weekday:'short'}).replace('.', '') : String(d.getDate()), name:fmtDate(ms, {weekday:'long', day:'numeric', month:'long'}), future:ms > now}); }
+  const series = (fld, scale, fmtTip) => B.map(x => { const v = av(x.keys, fld)*scale; return {v:Math.round(v*10)/10, label:x.label, dim:x.future, tip:`${x.name}\n${v ? fmtTip(v) : 'geen gegevens'}`}; });
+  const chart = (title, fld, scale, fmtTip, opt) => { const d = series(fld, scale, fmtTip); return d.some(x => x.v) ? `<div class="card"><h2>${title}</h2>${barChart(d, opt)}</div>` : ''; };
+  let wpts = keys.filter(k => D[k].weight && keyToMs(k) >= f && keyToMs(k) < t);
+  let wTitle = 'Gewicht';
+  if(wpts.length < 2){ wpts = keys.filter(k => D[k].weight && keyToMs(k) < t && keyToMs(k) >= t - 90*DAY); wTitle = 'Gewicht · laatste 90 dagen'; }
+  const wChart = wpts.length > 1 ? `<div class="card"><h2>${wTitle} <span class="muted small">(kg)</span></h2>${lineChart(wpts.map(k => ({t:keyToMs(k), v:D[k].weight, tip:`${fmtDateY(keyToMs(k))}\n${n1(D[k].weight)} kg`})), {title:'Gewicht'})}</div>` : '';
+  const sec = (title, html) => html ? `<h3 style="margin:18px 0 8px">${title}</h3><div class="tiles">${html}</div>` : '';
+  const any = tiles1 + tiles2 + tiles3;
+  return `<h1>Lichaam</h1>
+  ${perNav()}
+  ${any ? '' : '<div class="card empty"><p>Geen gegevens in deze periode.</p></div>'}
+  ${sec('Lichaam & beweging', tiles1)}
+  ${sec('Herstel & conditie', tiles2)}
+  ${sec('Voeding & energie', tiles3)}
+  ${wChart}
+  ${chart('Stappen <span class="muted small">(per dag)</span>', 'steps', 1, v => n0(v) + ' stappen', {title:'Stappen'})}
+  ${chart('Slaap <span class="muted small">(uren per nacht)</span>', 'sleep', 1/60, v => fmtDur(v*3600), {fmt:n1, h:150, title:'Slaap'})}
+  ${chart('Gegeten <span class="muted small">(kcal per dag)</span>', 'eaten', 1, v => n0(v) + ' kcal', {title:'Gegeten kcal'})}
+  ${chart('Rustpols <span class="muted small">(bpm)</span>', 'rhr', 1, v => n0(v) + ' bpm', {h:140, title:'Rustpols'})}
+  <p class="muted small">Bronnen: Apple Gezondheid${Object.keys(S.mfp||{}).length ? ' en MyFitnessPal' : ''} · Energiebalans = gegeten − (rustverbranding + actief), een schatting. Importeer je Gezondheid opnieuw om HRV, VO₂max en slaapfases te zien als die nog ontbreken.</p>`;
 }
 
 /* ---------- koppelen ---------- */
@@ -689,8 +733,10 @@ const toM = (v, u) => u === 'km' ? v*1000 : u === 'mi' ? v*1609.34 : u === 'm' ?
 async function importHealth(file){
   const bar = $('#pHealth'), fill = bar.firstElementChild;
   bar.hidden = false; msg('mHealth', 'Bezig met lezen… laat dit scherm open.');
-  const WANT = {StepCount:'steps', ActiveEnergyBurned:'active', DietaryEnergyConsumed:'eaten', DietaryProtein:'protein', BodyMass:'weight', RestingHeartRate:'rhr'};
-  const M = {steps:{}, active:{}, eaten:{}, protein:{}, sleep:{}}, weight = {}, rhr = {}, rings = {}, acts = [];
+  const WANT = {StepCount:'steps', ActiveEnergyBurned:'active', DietaryEnergyConsumed:'eaten', DietaryProtein:'protein', BodyMass:'weight', RestingHeartRate:'rhr',
+    BasalEnergyBurned:'basal', DistanceWalkingRunning:'walk', FlightsClimbed:'floors', VO2Max:'vo2', HeartRateVariabilitySDNN:'hrv', BodyFatPercentage:'bodyfat'};
+  const M = {steps:{}, active:{}, eaten:{}, protein:{}, sleep:{}, basal:{}, walk:{}, floors:{}}, weight = {}, rhr = {}, rings = {}, acts = [];
+  const AV = {vo2:{}, hrv:{}, bodyfat:{}}, stages = {};
   let cur = null, buf = '', nTags = 0;
   const add = (map, day, src, v) => { const d = map[day] || (map[day] = {}); d[src] = (d[src]||0) + v; };
   function finishWorkout(){
@@ -709,12 +755,19 @@ async function importHealth(file){
         const day = a.startDate.slice(0,10), src = a.sourceName || '?';
         if(k === 'weight') weight[day] = a.unit === 'lb' ? v*0.45359 : a.unit === 'g' ? v/1000 : v;
         else if(k === 'rhr'){ const r = rhr[day] || (rhr[day] = [0,0]); r[0] += v; r[1]++; }
-        else if(k === 'active' || k === 'eaten') add(M[k], day, src, toKcal(v, a.unit));
+        else if(AV[k]){ const vv = k === 'bodyfat' && v <= 1 ? v*100 : v; const r = AV[k][day] || (AV[k][day] = [0,0]); r[0] += vv; r[1]++; }
+        else if(k === 'walk') add(M.walk, day, src, toM(v, a.unit)/1000);
+        else if(k === 'active' || k === 'eaten' || k === 'basal') add(M[k], day, src, toKcal(v, a.unit));
         else add(M[k], day, src, v);
       } else if(ty === 'HKCategoryTypeIdentifierSleepAnalysis'){
         const a = attrs(t); if(!/Asleep/.test(a.value || '')) return;
         const min = (hkDate(a.endDate) - hkDate(a.startDate)) / 6e4;
-        if(min > 0 && min < 1440) add(M.sleep, a.endDate.slice(0,10), a.sourceName || '?', min);
+        if(min > 0 && min < 1440){
+          const day = a.endDate.slice(0,10), src = a.sourceName || '?';
+          add(M.sleep, day, src, min);
+          const st = /Deep/.test(a.value) ? 'deep' : /REM/.test(a.value) ? 'rem' : /Core/.test(a.value) ? 'core' : null;
+          if(st){ const o = (stages[day] ||= {})[src] ||= {deep:0, rem:0, core:0}; o[st] += min; }
+        }
       }
     } else if(t.startsWith('Workout ')){
       if(cur) finishWorkout();
@@ -783,6 +836,12 @@ async function importHealth(file){
     for(const f of Object.keys(M)) for(const [k, o] of Object.entries(M[f])) get(k)[f] = Math.round(mx(o)*10)/10;
     for(const [k, v] of Object.entries(weight)) get(k).weight = Math.round(v*10)/10;
     for(const [k, [s, n]] of Object.entries(rhr)) get(k).rhr = Math.round(s/n);
+    for(const f of Object.keys(AV)) for(const [k, [s, n]] of Object.entries(AV[f])) get(k)[f] = Math.round(s/n*10)/10;
+    for(const [k, bySrc] of Object.entries(stages)){ // slaapfases van de bron met de meeste slaap
+      const sl = M.sleep[k] || {}; let best = null;
+      for(const src of Object.keys(bySrc)) if(!best || (sl[src]||0) > (sl[best]||0)) best = src;
+      const o = bySrc[best]; Object.assign(get(k), {deep:Math.round(o.deep), rem:Math.round(o.rem), core:Math.round(o.core)});
+    }
     for(const [k, r] of Object.entries(rings)) get(k).ring = r;
     S.health = acts; S.daily = daily; S.cfg.healthAt = Date.now();
     await save('health', 'daily', 'cfg');
