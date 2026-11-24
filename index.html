@@ -114,7 +114,7 @@ ol.steps{padding-left:20px;margin:6px 0 10px}ol.steps li{margin:3px 0}
 <script>
 "use strict";
 addEventListener('error', e => { const el = document.getElementById('toast'); if(el){ el.textContent = 'Fout: ' + e.message; el.hidden = false; } });
-const VERSIE = '1.7';
+const VERSIE = '1.8';
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -141,8 +141,8 @@ function idb(){ return dbp ||= new Promise((res, rej) => { const r = indexedDB.o
 async function dbGet(k){ try{ const db = await idb(); return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }catch(e){ return undefined; } }
 async function dbSet(k, v){ try{ const db = await idb(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }catch(e){ console.warn('Opslaan mislukt', e); } }
 
-const S = { strava:[], hevy:[], health:[], manual:[], daily:{}, mfp:{}, cfg:{} };
-const KEYS = ['strava','hevy','health','manual','daily','mfp','cfg'];
+const S = { strava:[], hevy:[], health:[], manual:[], jims:[], daily:{}, mfp:{}, cfg:{} };
+const KEYS = ['strava','hevy','health','manual','jims','daily','mfp','cfg'];
 /* Gezondheid + MyFitnessPal-export samen; MFP-export wint voor voeding */
 function dailyMerged(){
   const D = {};
@@ -161,11 +161,11 @@ async function save(...ks){ CACHE = null; for(const k of ks) await dbSet(k, S[k]
 const SPORT = {
   kracht:['Kracht','🏋️'], lopen:['Lopen','🏃'], fietsen:['Fietsen','🚴'], wandelen:['Wandelen','🚶'],
   hiken:['Hiken','🥾'], zwemmen:['Zwemmen','🏊'], voetbal:['Voetbal','⚽'], hiit:['HIIT','🔥'],
-  cardio:['Cardio','❤️'], roeien:['Roeien','🚣'], yoga:['Yoga & mobiliteit','🧘'], coach:['Coachsessie','📋'],
+  cardio:['Cardio','❤️'], roeien:['Roeien','🚣'], yoga:['Yoga & mobiliteit','🧘'], coach:['Coachsessie','📋'], gym:['Gymbezoek','🏢'],
   vechtsport:['Vechtsport','🥊'], overig:['Andere','💪']
 };
 const sp = x => SPORT[x] || SPORT.overig;
-const SRC = { strava:'Strava', hevy:'Hevy', health:'Gezondheid', manual:'Zelf' };
+const SRC = { strava:'Strava', hevy:'Hevy', health:'Gezondheid', manual:'Zelf', jims:'Jims' };
 function normHK(t){
   t = (t||'').replace('HKWorkoutActivityType','');
   if(/Strength|CoreTraining|CrossTraining/.test(t)) return 'kracht';
@@ -219,6 +219,13 @@ function data(){
     kept.push(a);
     if(!buckets.has(k)) buckets.set(k, []);
     buckets.get(k).push({start:a.start, type:a.type, day});
+  }
+  // Jims-check-ins: alleen als er in dat tijdvak geen andere training is (anders dubbel)
+  const M15 = 9e5;
+  for(const c of S.jims || []){
+    const end = c.start + (c.dur || 3600)*1000;
+    const overlap = kept.some(a => a.start < end + M15 && a.start + (a.dur||0)*1000 > c.start - M15);
+    if(!overlap) kept.push(c);
   }
   kept.sort((a,b) => b.start - a.start);
   const days = new Map();
@@ -369,7 +376,7 @@ function render(){
 }
 function actRow(a, open){
   const [lbl, ic] = SPORT[a.type] || SPORT.overig;
-  const bits = [fmtDur(a.dur), fmtKm(a.dist), a.elev ? n0(a.elev)+' hm' : '', a.kcal ? n0(a.kcal)+' kcal' : '', a.hr ? n0(a.hr)+' bpm' : '', a.vol ? n0(a.vol)+' kg volume' : ''].filter(Boolean).join(' · ');
+  const bits = [a.dur ? fmtDur(a.dur) : '', fmtKm(a.dist), a.elev ? n0(a.elev)+' hm' : '', a.kcal ? n0(a.kcal)+' kcal' : '', a.hr ? n0(a.hr)+' bpm' : '', a.vol ? n0(a.vol)+' kg volume' : ''].filter(Boolean).join(' · ');
   const head = `<span class="ic">${ic}</span><div class="main"><div class="nm">${esc(a.name || lbl)}</div><div class="meta">${esc(fmtDate(a.start))} ${fmtTime(a.start)} · ${esc(bits)} <span class="src">${SRC[a.src]}${a.app ? ' · '+esc(a.app) : ''}</span></div></div>`;
   if(a.ex && a.ex.length){
     const ex = a.ex.map(x => `<div><b>${esc(x.n)}</b>: ${x.sets.map(st => st.w ? `${n1(st.w)}×${st.r||0}` : st.r ? `${st.r} reps` : st.s ? fmtDur(st.s) : st.d ? fmtKm(st.d) : '–').join(', ')}</div>`).join('');
@@ -482,6 +489,8 @@ function vHome(){
     <div class="tile"><div class="lbl">Trainingen</div><div class="val">${n0(cur.n)}</div><div class="delta">${esc(deltaTxt(cur.n, prev.n, n0, word) || '–')}</div></div>
     <div class="tile"><div class="lbl">Trainingstijd</div><div class="val">${fmtDur(cur.s)}</div><div class="delta">${esc(deltaTxt(cur.s/60, prev.s/60, v => fmtDur(v*60), word) || '–')}</div></div>
     <div class="tile"><div class="lbl">Afstand</div><div class="val">${cur.m ? n1(cur.m/1000) + ' km' : '–'}</div><div class="delta">${esc(deltaTxt(cur.m/1000, prev.m/1000, n1, word).replace(/(\d)( t\.o\.v)/, '$1 km$2') || '–')}</div></div>
+    ${(S.jims||[]).length ? (() => { const g = S.jims.filter(c => c.start >= f && c.start < t), gp = S.jims.filter(c => c.start >= pf && c.start < (OFF === 0 ? Math.min(pt, pf + (now - f)) : pt)); const m = g.length ? g.reduce((x, c) => x + (c.dur||0), 0)/g.length : 0;
+      return `<div class="tile"><div class="lbl">Gymbezoeken (Jims)</div><div class="val">${g.length}</div><div class="delta">${esc(deltaTxt(g.length, gp.length, n0, word) || '–')}</div></div><div class="tile"><div class="lbl">Gem. tijd in de gym</div><div class="val">${m ? fmtDur(m) : '–'}</div><div class="delta">${g.length ? esc([...new Set(g.map(c => c.name))].join(', ')) : 'per bezoek'}</div></div>`; })() : ''}
     <div class="tile"><div class="lbl">Verbrand (training)</div><div class="val">${kcal ? n0(kcal) : '–'}</div><div class="delta">kcal${OFF === 0 ? ` · ${s2.ws} weken op rij actief` : ''}</div></div>
   </div>
   <div class="card"><h2>Trainingstijd <span class="muted small">(${unit})</span></h2>${barChart(bars, {fmt: PER === 'jaar' ? n1 : n0, title:'Trainingstijd ' + sub})}</div>
@@ -753,8 +762,15 @@ function vKoppel(){
   <button class="btn ghost" id="bHevy">Ophalen via API</button>
   <div class="msg" id="mHevy"></div></div>
 
-  <div class="card"><h2>📋 Coach-app &amp; Jims</h2>
-  <p class="small">Daarvoor bestaat geen openbare koppeling. Kijk in de app van je coach of je <b>Apple Gezondheid</b> kunt aanzetten, dan komen die trainingen mee met de Gezondheid-export. Anders voeg je ze hier zelf toe:</p>
+  <div class="card"><h2>🏢 Jims check-ins</h2>
+  <p class="small">${(S.jims||[]).length ? `<span class="ok">✓ ${n0(S.jims.length)} check-ins</span> · ${last(c.jimsAt)}` : 'Je gymbezoeken met datum, uren en vestiging.'}</p>
+  <ol class="steps small"><li>Vraag in de Jims-app je overzicht van check-ins op als PDF.</li><li>Bewaar de PDF in Bestanden en kies hem hier.</li></ol>
+  <label class="btn">📂 Kies Jims-PDF<input type="file" id="fJims" accept=".pdf,application/pdf" multiple hidden></label>
+  <div class="msg" id="mJims"></div>
+  <p class="muted small">Alleen datum, uren en vestiging worden bewaard. Een check-in telt niet dubbel als er op dat moment al een training staat (bv. uit Hevy of je coach-app).</p></div>
+
+  <div class="card"><h2>📋 Coach-app &amp; andere trainingen</h2>
+  <p class="small">Trainingen van je coach-app komen binnen via de Gezondheid-export. Iets dat nergens anders staat, voeg je hier zelf toe:</p>
   <div class="row"><div><label class="small">Datum<input type="date" id="mDate" value="${dk(Date.now())}"></label></div><div><label class="small">Uur<input type="time" id="mTime" value="18:00"></label></div></div>
   <div class="row"><div><label class="small">Soort<select id="mType">${Object.entries(SPORT).map(([k, v]) => `<option value="${k}" ${k==='coach'?'selected':''}>${v[1]} ${v[0]}</option>`).join('')}</select></label></div><div><label class="small">Minuten<input type="number" id="mMin" value="60" min="1" inputmode="numeric"></label></div></div>
   <label class="small">Naam / notitie (bv. oefeningen van je coach)<textarea id="mNote" rows="2" placeholder="Bv. Leg day: squat 4×8 80 kg, …"></textarea></label>
@@ -775,6 +791,7 @@ function bindKoppel(){
   const on = (id, ev, fn) => { const el = $('#'+id); if(el) el.addEventListener(ev, fn); };
   on('fHealth', 'change', e => e.target.files[0] && importHealth(e.target.files[0]));
   on('fHevy', 'change', e => e.target.files[0] && importHevyCSV(e.target.files[0]));
+  on('fJims', 'change', e => e.target.files.length && importJims([...e.target.files]));
   on('fMfp', 'change', e => e.target.files.length && importMfp([...e.target.files]));
   on('bHevy', 'click', hevyApi);
   on('fStrava', 'change', e => e.target.files[0] && importStravaArchive(e.target.files[0]));
@@ -786,7 +803,7 @@ function bindKoppel(){
   on('undoManual', 'click', async e => { e.preventDefault(); S.manual.pop(); await save('manual'); render(); });
   on('bExport', 'click', exportBackup);
   on('fBackup', 'change', e => e.target.files[0] && importBackup(e.target.files[0]));
-  on('bWipe', 'click', async () => { if(!confirm('Echt alles wissen op dit toestel?')) return; S.strava = []; S.hevy = []; S.health = []; S.manual = []; S.daily = {}; S.mfp = {}; S.cfg = {}; await save(...KEYS); render(); });
+  on('bWipe', 'click', async () => { if(!confirm('Echt alles wissen op dit toestel?')) return; S.strava = []; S.hevy = []; S.health = []; S.manual = []; S.jims = []; S.daily = {}; S.mfp = {}; S.cfg = {}; await save(...KEYS); render(); });
 }
 
 /* ---------- Apple Gezondheid ---------- */
@@ -1006,6 +1023,60 @@ async function hevyApi(){
     console.error(e);
     msg('mHevy', 'Mislukt: ' + (e.message === 'Failed to fetch' || e.name === 'TypeError' ? 'Hevy laat geen verbinding toe vanuit een browser. Gebruik optie 1 (CSV-export).' : e.message), true);
   }
+}
+
+/* ---------- Jims-PDF ---------- */
+const PDFJS = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/', 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/'];
+function loadScript(src){ return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => { el.remove(); rej(new Error('laden mislukt')); }; document.head.appendChild(el); }); }
+async function pdfText(file){
+  if(!window.pdfjsLib){
+    let ok = false;
+    for(const base of PDFJS){ try{ await loadScript(base + 'pdf.min.js'); window.PDFJS_BASE = base; ok = true; break; }catch(_){} }
+    if(!ok) throw new Error('Het PDF-onderdeel kon niet laden. Heb je internet?');
+  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = (window.PDFJS_BASE || PDFJS[0]) + 'pdf.worker.min.js';
+  const doc = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  let out = '';
+  for(let i = 1; i <= doc.numPages; i++){
+    const pg = await doc.getPage(i), tc = await pg.getTextContent();
+    let prev = null;
+    // stukjes tekst aan elkaar plakken op basis van hun positie ("1" "1" naast elkaar = "11")
+    for(const it of tc.items){
+      if(!it.str){ if(it.hasEOL){ out += '\n'; prev = null; } continue; }
+      const x = it.transform[4], y = it.transform[5];
+      if(prev){ if(Math.abs(y - prev.y) > 2) out += '\n'; else if(x - prev.xe > 1.5) out += ' '; }
+      out += it.str; prev = {y, xe: x + (it.width || 0)};
+    }
+    out += '\n';
+  }
+  return out;
+}
+function parseJims(text){
+  const t = text.replace(/\s+/g, ' ');
+  const re = /(\d{2})\.(\d{2})\.(\d{4}) (\d{1,2}):(\d{2})(?: ?- ?(?:(\d{1,2}):(\d{2}))?)? (.*?)(?= \d{2}\.\d{2}\.\d{4} \d{1,2}:\d{2}|$)/g;
+  const out = []; let m;
+  while((m = re.exec(t))){
+    const start = new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5]).getTime();
+    let dur = 0;
+    if(m[6]){ let end = new Date(+m[3], +m[2]-1, +m[1], +m[6], +m[7]).getTime(); if(end < start) end += DAY; dur = Math.round((end - start)/1000); if(dur > 6*3600) dur = 0; }
+    const rest = m[8].split('//')[0].trim();
+    const st = (rest.match(/^Jims(?:\s+(?!Jims\b)[A-ZÀ-Ý][\wÀ-ÿ'’-]*)*/) || [rest.slice(0, 40)])[0].trim() || 'Jims';
+    out.push({id:'jims-'+start, src:'jims', type:'gym', name:st, start, dur});
+  }
+  return out;
+}
+async function importJims(files){
+  try{
+    msg('mJims', 'PDF lezen…');
+    const found = [];
+    for(const f of files) found.push(...parseJims(await pdfText(f)));
+    if(!found.length) throw new Error('Geen check-ins gevonden. Is dit de check-in-PDF van Jims?');
+    const byId = new Map((S.jims||[]).map(a => [a.id, a])), before = byId.size; for(const a of found) byId.set(a.id, a);
+    S.jims = [...byId.values()].sort((a, b) => b.start - a.start); S.cfg.jimsAt = Date.now();
+    await save('jims', 'cfg'); render();
+    const first = S.jims[S.jims.length-1].start;
+    msg('mJims', `✓ ${n0(found.length)} check-ins gelezen (${n0(byId.size - before)} nieuw). Totaal ${n0(S.jims.length)} sinds ${fmtDateY(first)}.`);
+  }catch(e){ console.error(e); msg('mJims', 'Mislukt: ' + (e.message || e), true); }
 }
 
 /* ---------- MyFitnessPal-export ---------- */
@@ -1243,7 +1314,7 @@ async function askPersist(){
   }catch(_){}
 }
 function backupBanner(){
-  const has = S.strava.length || S.hevy.length || S.health.length || S.manual.length || Object.keys(S.daily).length;
+  const has = (S.jims||[]).length || S.strava.length || S.hevy.length || S.health.length || S.manual.length || Object.keys(S.daily).length;
   const b = S.cfg.backupAt;
   if(!has || (b && Date.now() - b < 14*DAY)) return '';
   return `<div class="card" style="border-color:var(--s1)"><b>💾 ${b ? 'Je laatste back-up is van ' + esc(fmtDateY(b)) : 'Je hebt nog geen back-up'}</b><p class="small" style="margin:4px 0 8px;color:var(--ink2)">Je gegevens staan alleen in Safari op deze gsm. Met een back-up ben je niets kwijt als Safari ze ooit wist.</p><button class="btn" id="bBackupNow">Back-up nu</button></div>`;
@@ -1252,7 +1323,7 @@ async function importBackup(file){
   try{
     const j = JSON.parse(await file.text());
     if(j.app !== 'sportoverzicht') throw new Error('Geen Sportoverzicht-back-up.');
-    for(const k of ['strava','hevy','health','manual','daily','mfp']) if(j[k]) S[k] = j[k];
+    for(const k of ['strava','hevy','health','manual','jims','daily','mfp']) if(j[k]) S[k] = j[k];
     await save(...KEYS); render(); msg('mBackup', '✓ Back-up teruggezet.');
   }catch(e){ msg('mBackup', 'Mislukt: ' + e.message, true); }
 }
